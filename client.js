@@ -315,14 +315,9 @@ window.__ModuleLoader__.load({
       const isSubCollapsed = (k) => !!subCollapsed[k];
       const toggleSubCollapsed = (k) => setSubCollapsed({ ...subCollapsed, [k]: !subCollapsed[k] });
 
-      // 打标签：prompt 逗号分隔（留空清除）
-      const editTags = (sessionId) => {
-        const current = (tags.bySession[sessionId] || []).join("，");
-        const input = window.prompt("设置标签（多个用逗号分隔，留空清除）：", current);
-        if (input === null) return;
-        const next = input.split(/[,，]/).map((t) => t.trim()).filter(Boolean);
-        run("标签", () => tools["tags.set"](sessionId, next)).then(refreshTags);
-      };
+      // 打标签：打开点选式标签编辑器（已有标签点击即选，避免手输错字符）
+      const [tagEditorFor, setTagEditorFor] = React.useState(null);
+      const editTags = (sessionId) => setTagEditorFor(sessionId);
 
 
       // 对话管理：打开消息面板
@@ -685,6 +680,17 @@ window.__ModuleLoader__.load({
             dialogRun("编辑", () => tools["messages.edit"](dialogFor, m.seq, next), () => openDialog(dialogFor));
           },
         }),
+        tagEditorFor && jsx(TagEditor, {
+          title: list && list.byId && list.byId[tagEditorFor] ? list.byId[tagEditorFor].displayTitle : tagEditorFor,
+          current: tags.bySession[tagEditorFor] || [],
+          all: tags.all || [],
+          busy,
+          onClose: () => setTagEditorFor(null),
+          onSave: (next) => {
+            run("标签", () => tools["tags.set"](tagEditorFor, next)).then(refreshTags);
+            setTagEditorFor(null);
+          },
+        }),
       ] });
     }
 
@@ -1040,6 +1046,68 @@ window.__ModuleLoader__.load({
       if (!it || typeof it.turns !== "number" || it.turns !== 0) return null;
       const base = String(it.cwd || "").replace(/[/\\]+$/, "").split(/[/\\]/).pop() || "";
       return "（空会话）" + (base && base !== "?" ? base : "未命名");
+    }
+
+    /** 标签编辑器：点选已有标签（避免手输错字符产生分裂标签）+ 输入新标签 */
+    function TagEditor(props) {
+      const { title, current, all, onSave, onClose, busy } = props;
+      const [selected, setSelected] = React.useState([...(current || [])]);
+      const [input, setInput] = React.useState("");
+      const toggle = (tag) => {
+        setSelected((s) => (s.includes(tag) ? s.filter((t) => t !== tag) : [...s, tag]));
+      };
+      const addNew = () => {
+        const tags = input.split(/[,，]/).map((t) => t.trim()).filter(Boolean);
+        if (tags.length === 0) return;
+        setSelected((s) => [...new Set([...s, ...tags])]);
+        setInput("");
+      };
+      const available = (all || []).filter((t) => !selected.includes(t));
+      const chip = (text, onClick, prefix) => jsx("span", {
+        key: text,
+        onClick,
+        title: "点击" + (prefix === "✕ " ? "移除" : "添加"),
+        style: {
+          display: "inline-flex", alignItems: "center", gap: 3,
+          fontSize: 12, cursor: "pointer", userSelect: "none",
+          background: prefix === "✕ " ? "rgba(47,125,50,0.22)" : "rgba(80,120,255,0.18)",
+          color: prefix === "✕ " ? "#7ecb83" : "#9db8ff",
+          borderRadius: 10, padding: "2px 8px",
+        },
+        children: prefix + text,
+      });
+      return jsx("div", {
+        style: { position: "fixed", inset: 0, zIndex: 2100, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.55)", padding: 12 },
+        onClick: onClose,
+        children: jsx("div", {
+          style: { width: "min(520px, 94vw)", maxHeight: "78vh", display: "flex", flexDirection: "column", background: "var(--dsw-specific-surface-float, #1c1c20)", color: "var(--dsw-alias-label-primary, #eee)", borderRadius: 12, padding: 14, boxSizing: "border-box", boxShadow: "0 12px 40px rgba(0,0,0,0.5)" },
+          onClick: (e) => e.stopPropagation(),
+          children: [
+            jsx("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }, children: [
+              jsx("div", { style: { flex: 1, fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: "🏷 设置标签：" + (title || "") }),
+              jsx(P.Button, { size: "sm", variant: "outline", onClick: onClose, children: "✕" }),
+            ] }),
+            jsx("div", { style: { display: "flex", gap: 6, marginBottom: 12 }, children: [
+              jsx("input", {
+                value: input,
+                onChange: (e) => setInput(e.target.value),
+                onKeyDown: (e) => { if (e.key === "Enter") addNew(); },
+                placeholder: "输入新标签（多个用逗号分隔）",
+                style: { flex: 1, minWidth: 0, fontSize: 13, padding: "5px 8px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit", outline: "none" },
+              }),
+              jsx(P.Button, { size: "sm", onClick: addNew, children: "添加" }),
+            ] }),
+            jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 6 }, children: "已选（点击移除）：" }),
+            jsx("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }, children: selected.length === 0 ? jsx("span", { style: { fontSize: 12, opacity: 0.5 }, children: "（无）" }) : selected.map((t) => chip(t, () => toggle(t), "✕ ")) }),
+            jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 6 }, children: "已有标签（点击添加，无需手输）：" }),
+            jsx("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }, children: available.length === 0 ? jsx("span", { style: { fontSize: 12, opacity: 0.5 }, children: "（没有其他标签）" }) : available.map((t) => chip(t, () => toggle(t), "+ ")) }),
+            jsx("div", { style: { display: "flex", justifyContent: "flex-end", gap: 6 }, children: [
+              jsx(P.Button, { size: "sm", variant: "outline", onClick: onClose, children: "取消" }),
+              jsx(P.Button, { size: "sm", variant: "primary", disabled: busy, onClick: () => onSave(selected), children: "保存" }),
+            ] }),
+          ],
+        }),
+      });
     }
 
     /** 归档会话 Tab：查看/恢复/删除 dsh 官方归档的会话 */
