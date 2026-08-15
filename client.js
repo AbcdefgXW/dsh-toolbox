@@ -82,7 +82,6 @@ window.__ModuleLoader__.load({
 
     /** 设置开关定义（与后端 settings.js 一致）。 */
     const SWITCHES = [
-      { key: "scheduleTask", label: "定时心跳", desc: "定时向主工作区会话注入心跳消息，唤醒 AI 执行巡检/汇报等任务（类似 OpenClaw 心跳模式）。⚠️ 会消耗 token；默认：关；间隔与提示语见下方（默认：60 分钟）", default: false },
       { key: "sessionManage", label: "会话管理", desc: "会话列表操作：删除 / 移动 / 复制 / 重设工作区根（默认：开）" },
       { key: "dialogueManage", label: "对话管理", desc: "⚠️ 需重启生效。会话内消息：截断到此 / 编辑消息（改内容并删除后续回复），操作后也需重启完整生效（默认：关）", default: false },
       { key: "workspaceManage", label: "子目录管理", desc: "工作区子目录：新增 / 重命名 / 删除 / 复制 / 移动（默认：开）" },
@@ -94,6 +93,9 @@ window.__ModuleLoader__.load({
       { key: "collapseUserMsg", label: "用户长消息折叠", desc: "你发送的消息超过「折叠行数阈值」时自动折叠显示，点击「展开全部」查看（默认：开；改后刷新页面生效）" },
       { key: "collapseAiMsg", label: "AI 长消息折叠", desc: "AI 回复超过「折叠行数阈值」时自动折叠显示（默认：关；阈值同上）", default: false },
     ];
+
+    /** 定时心跳开关（独立分区渲染，配置项紧跟其后）。 */
+    const SWITCH_HEART = { key: "scheduleTask", label: "定时心跳", desc: "定时向目标会话注入心跳消息，唤醒 AI 执行巡检/汇报等任务（类似 OpenClaw 心跳模式）。⚠️ 会消耗 token；默认：关", default: false };
 
     /** 设置表单组件（渲染到 设置 → 工具箱 分组）。 */
     function ToolsSettingsSection(props) {
@@ -238,13 +240,21 @@ window.__ModuleLoader__.load({
         });
       };
 
+      const sectionTitle = (text) => jsx("div", {
+        style: { fontSize: 12, fontWeight: 700, opacity: 0.85, padding: "10px 0 2px", borderTop: "1px solid rgba(128,128,128,0.28)", marginTop: 10, letterSpacing: 0.5 },
+        children: text,
+      });
+
       return jsx("div", {
         style: { padding: "0 4px" },
         children: [
           jsx("div", { style: { fontSize: 13, opacity: 0.7, marginBottom: 8 }, children: "每个功能可独立开关；带 ⚠️ 的切换后需重启生效。" }),
-          ...SWITCHES.map(row),
+
+          // ── 分区一：定时心跳（开关 + 全部配置项） ──
+          sectionTitle("⏰ 定时心跳"),
+          row(SWITCH_HEART),
           jsx("div", {
-            style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8, borderTop: "1px solid rgba(128,128,128,0.15)", marginTop: 8 },
+            style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
             children: [
               jsx("label", { style: { flex: 1 }, children: "心跳间隔（分钟，最小 5，默认 60）" }),
               jsx("input", {
@@ -270,7 +280,7 @@ window.__ModuleLoader__.load({
             style: { width: "100%", boxSizing: "border-box", fontSize: 12, padding: "6px 8px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit", outline: "none", marginBottom: 8, resize: "vertical" },
           }),
           jsx("div", {
-            style: { display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderTop: "1px solid rgba(128,128,128,0.15)", marginTop: 8, flexWrap: "wrap" },
+            style: { display: "flex", alignItems: "center", gap: 8, padding: "8px 0", flexWrap: "wrap" },
             children: [
               jsx("label", { style: { flex: "none" }, children: "定点定时" }),
               jsx("select", {
@@ -304,9 +314,9 @@ window.__ModuleLoader__.load({
               }),
             ],
           }),
-          jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "在指定时间点触发一次心跳（如每天 09:00、每周一 09:00、每月 1 号 09:00）；需同时开启上方「定时心跳」开关。" }),
+          jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "在指定时间点额外触发一次心跳（如每天 09:00、每周一 09:00、每月 1 号 09:00）。" }),
           jsx("div", {
-            style: { display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderTop: "1px solid rgba(128,128,128,0.15)", marginTop: 8, flexWrap: "wrap" },
+            style: { display: "flex", alignItems: "center", gap: 8, padding: "8px 0", flexWrap: "wrap" },
             children: [
               jsx("label", { style: { flex: "none" }, children: "心跳目标会话" }),
               jsx("select", {
@@ -321,8 +331,12 @@ window.__ModuleLoader__.load({
             ],
           }),
           jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "留空 = 注入主工作区根的所有会话；指定 = 只注入选中的会话（渠道会话除外）。" }),
+
+          // ── 分区二：功能开关（含折叠） ──
+          sectionTitle("🔧 功能开关"),
+          ...SWITCHES.map(row),
           jsx("div", {
-            style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8, borderTop: "1px solid rgba(128,128,128,0.15)", marginTop: 8 },
+            style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
             children: [
               jsx("label", { style: { flex: 1 }, children: "折叠行数阈值（用户/AI 消息超过该行数即折叠，默认 15，0 = 不折叠）" }),
               jsx("input", {
@@ -334,6 +348,9 @@ window.__ModuleLoader__.load({
               }),
             ],
           }),
+
+          // ── 分区三：回收站 ──
+          sectionTitle("🗑️ 回收站"),
           jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
             children: [
