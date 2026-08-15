@@ -27,7 +27,7 @@
 
 - **dsh** 运行时（插件作为 dsh 插件加载；前端依赖 dsh web 运行时注入的 `react`、`@deepseek-ai/dsh-client-ui-primitives` 等）
 - **Node.js ≥ 22.13**（会话文件解压使用 `node:zlib` 的 zstd 支持）
-- **Linux**（会话存储路径基于 `$DSH_HOME` 约定，默认 `/home/dsh`）
+- **平台**：代码跨平台（全 Node 内置 API，无 shell 依赖）。默认路径按 Linux 约定（`/home/dsh`、`/workspace`）；**Windows / macOS 部署请设置环境变量 `DSH_HOME` 与 `DSH_CHANNELS_CWD`** 指向实际目录（见下文「环境变量」）
 
 ## 安装
 

@@ -27,7 +27,7 @@
 
 - **dsh** runtime (loaded as a dsh plugin; the frontend relies on `react`, `@deepseek-ai/dsh-client-ui-primitives`, etc., injected by the dsh web runtime)
 - **Node.js ≥ 22.13** (session files are decompressed via the zstd support in `node:zlib`)
-- **Linux** (session storage paths follow the `$DSH_HOME` convention, default `/home/dsh`)
+- **Platform**: cross-platform (Node built-in APIs only, no shell dependency). Default paths follow the Linux convention (`/home/dsh`, `/workspace`); on **Windows / macOS, set the `DSH_HOME` and `DSH_CHANNELS_CWD` environment variables** to your actual directories (see "Environment Variables" below)
 
 ## Installation
 
