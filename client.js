@@ -200,6 +200,24 @@ window.__ModuleLoader__.load({
           console.error("dsh-toolbox: config.set 同步抛错(定点定时)", e);
         }
       };
+      // 心跳目标会话：下拉选择（空 = 主工作区根）
+      const [sessList, setSessList] = React.useState([]);
+      React.useEffect(() => {
+        if (!tools || typeof tools["sessions.list"] !== "function") return;
+        tools["sessions.list"]()
+          .then((resp) => setSessList(unwrap(resp) || []))
+          .catch(() => {});
+      }, [tools, unwrap]);
+      const scheduleTarget = String(doc?.scheduleTarget || "");
+      const setScheduleTarget = (value) => {
+        try {
+          tools["config.set"]("scheduleTarget", value)
+            .then((resp) => setDoc(unwrap(resp) || {}))
+            .catch((e) => console.error("dsh-toolbox: config.set 拒绝(心跳目标)", e));
+        } catch (e) {
+          console.error("dsh-toolbox: config.set 同步抛错(心跳目标)", e);
+        }
+      };
 
       const row = (sw) => {
         const value = doc?.[sw.key] ?? (sw.default !== false);
@@ -287,6 +305,22 @@ window.__ModuleLoader__.load({
             ],
           }),
           jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "在指定时间点触发一次心跳（如每天 09:00、每周一 09:00、每月 1 号 09:00）；需同时开启上方「定时心跳」开关。" }),
+          jsx("div", {
+            style: { display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderTop: "1px solid rgba(128,128,128,0.15)", marginTop: 8, flexWrap: "wrap" },
+            children: [
+              jsx("label", { style: { flex: "none" }, children: "心跳目标会话" }),
+              jsx("select", {
+                value: scheduleTarget,
+                onChange: (e) => setScheduleTarget(e.target.value),
+                style: { fontSize: 12, padding: "3px 6px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit", maxWidth: 260 },
+                children: [
+                  jsx("option", { value: "", children: "主工作区根（默认）" }),
+                  ...sessList.map((s) => jsx("option", { key: s.sessionId, value: s.sessionId, children: (s.cwd ? String(s.cwd).replace(/[/\\]+$/, "").split(/[/\\]/).pop() + " · " : "") + s.sessionId.slice(0, 18) + "…" })),
+                ],
+              }),
+            ],
+          }),
+          jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "留空 = 注入主工作区根的所有会话；指定 = 只注入选中的会话（渠道会话除外）。" }),
           jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8, borderTop: "1px solid rgba(128,128,128,0.15)", marginTop: 8 },
             children: [

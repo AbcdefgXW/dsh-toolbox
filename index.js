@@ -739,18 +739,30 @@ export function apply(ctx) {
         source: { kind: "plugin", plugin: "dsh-toolbox" },
       };
       let injected = 0;
-      for (const agent of agents.roots()) {
-        try {
-          // 只心跳主工作区根的 live agent；渠道（ch-*）与子代理跳过
-          const cwd = agent?.session?.header?.cwd;
-          if (cwd && cwd !== WORKSPACE_ROOT) continue;
-          if (agent.id && String(agent.id).startsWith("ch-")) continue;
-          if (typeof agent.followup === "function") {
-            await agent.followup(message);
-            injected += 1;
+      // 目标会话：scheduleTarget 指定则只注入该会话；未指定默认主工作区根
+      const target = String(cfg.scheduleTarget || "").trim();
+      if (target) {
+        const agent = agents.roots().find((a) => a.id === target);
+        if (agent && typeof agent.followup === "function") {
+          await agent.followup(message);
+          injected = 1;
+        } else {
+          log.info(`dsh-toolbox: 定时心跳目标会话未找到 ${target}`);
+        }
+      } else {
+        for (const agent of agents.roots()) {
+          try {
+            // 只心跳主工作区根的 live agent；渠道（ch-*）与子代理跳过
+            const cwd = agent?.session?.header?.cwd;
+            if (cwd && cwd !== WORKSPACE_ROOT) continue;
+            if (agent.id && String(agent.id).startsWith("ch-")) continue;
+            if (typeof agent.followup === "function") {
+              await agent.followup(message);
+              injected += 1;
+            }
+          } catch (e) {
+            logErr("heartbeat.followup", e);
           }
-        } catch (e) {
-          logErr("heartbeat.followup", e);
         }
       }
       if (injected > 0) log.info(`dsh-toolbox: 定时心跳已注入 ${injected} 个会话`);
@@ -785,12 +797,16 @@ export function apply(ctx) {
       logErr("heartbeat.cron", e);
     }
   };
+  let prevTaskOn = null; // 开关状态跟踪：刚打开时开始计时，不立即触发
   const startHeartbeat = () => {
     if (heartbeatTimer) return;
     heartbeatTimer = setInterval(async () => {
       try {
         const cfg = getConfig();
-        if (!cfg.scheduleTask) { lastBeatAt = 0; return; }
+        const taskOn = cfg.scheduleTask === true;
+        if (taskOn && prevTaskOn === false) lastBeatAt = Date.now(); // 刚打开：从现在起算
+        prevTaskOn = taskOn;
+        if (!taskOn) { lastBeatAt = 0; return; }
         const minutes = Math.max(5, Math.floor(Number(cfg.scheduleInterval) || 60));
         if (Date.now() - lastBeatAt >= minutes * 60 * 1000) {
           lastBeatAt = Date.now();
