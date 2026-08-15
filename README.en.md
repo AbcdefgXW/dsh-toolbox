@@ -11,7 +11,7 @@
 ## ✨ Features
 
 - **💬 Session Management**: delete (to trash), duplicate (official fork with `-copyN` naming), move (between workspaces), reset workspace root, tag grouping (click-to-select editor for existing tags to avoid typos; tag management: delete/rename, renaming merges duplicates), view session content (read-only), conversation management (truncate/edit, disabled by default), empty sessions auto-labeled as `(empty session) workspace-name`
-- **⏰ Scheduled Heartbeat**: wake the AI on a schedule to run checkups/reports (OpenClaw-style heartbeat) — two schedulers: **interval heartbeat** (every N minutes) and **fixed-time schedule** (daily at HH:mm / weekly on a weekday / monthly on a date), each with its own prompt and target; targets can be the **main workspace root (internal checkup), any session, or 📱 WeChat / QQ / Feishu IM channels** (wakes the channel bot and pushes the AI reply back to your phone; requires the dsh-channels plugin)
+- **⏰ Scheduled Heartbeat**: wake the AI on a schedule to run checkups/reports (OpenClaw-style heartbeat) — two schedulers: **interval heartbeat** (every N minutes) and **fixed-time schedule** (daily at HH:mm / weekly on a weekday / monthly on a date), each with its own prompt and target; targets can be the **main workspace root (internal checkup), any session, or 📱 WeChat / QQ / Feishu IM channels** (wakes the channel bot and pushes the AI reply back to your phone). The scheduler runs in the **dsh backend process** — **no need to keep the web page open**; the container (dsh service) running is enough. Channel push is an **optional integration**: it depends on the `dsh-channels-push` service provided by our in-house channel bridge plugin dsh-channels (see "IM Channel Push (optional)" below); without it the heartbeat automatically falls back to the main workspace root
 - **📃 Long-message Collapse**: messages longer than the threshold (15 lines by default, configurable) auto-collapse with an "expand all" button; on by default for user messages, off for AI replies (pure render-layer enhancement, no data modification)
 - **🗑️ Trash Bin**: deleted sessions/subdirectories go to trash (30-day retention by default, configurable); restore / purge / preview deleted session content
 - **📁 Subdirectory Management**: create / rename / delete / duplicate directories under a workspace, batch-assign sessions
@@ -98,6 +98,14 @@ Defaults apply when unset; all other paths are derived from the plugin's own dir
 - The plugin reads/writes: `$DSH_HOME/sessions/` (session files, multi-frame zstd), `$DSH_HOME/storages/workspace.json` (workspace registry), and the dsh config file (only when using the config editor)
 - **Delete = move to trash** (30-day retention by default, restorable) — never a physical delete
 - **IM channel push notes**: when scheduled heartbeat pushes to IM channels, WeChat uses a simulated web protocol (ilinkai) — **frequent proactive messaging carries account risk-control risk**; keep the interval ≥ 15 minutes, keep prompt content normal, and avoid bursts of pushes. QQ Open Platform proactive messages require applying for the **"proactive message permission"** (pushes fail silently without it). Feishu uses the official API — compliant and safe.
+
+## IM Channel Push (optional)
+
+The "📱 WeChat / QQ / Feishu" targets of scheduled heartbeat are an **optional integration**: dsh-toolbox calls the `dsh-channels-push` cordis service to "wake the channel bot → push the AI reply back to the IM".
+
+- **dsh-channels** is our in-house channel bridge plugin (WeChat ilinkai / QQ Open Platform / Feishu Open Platform); it is **not distributed with this repository** — install it separately
+- Without that service: channel targets are unavailable (a "channel push service unavailable" note is shown), and heartbeat to the main workspace root / any session is completely unaffected
+- A third-party channel plugin exposing the same service name can also be integrated (currently an implementation convention, not a public adapter spec)
 - **Conversation management (truncate/edit)**: modifies session files and requires a container restart to take full effect; disabled by default, enable it explicitly in settings
 
 ## Development
