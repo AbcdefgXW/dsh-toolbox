@@ -65,7 +65,7 @@ const PLUGIN_STATE_DIR = path.join(fileURLToPath(new URL("./", import.meta.url))
 
 export const name = "dsh-toolbox";
 
-export const inject = ["settings", "typert"];
+export const inject = ["settings", "typert", "agents"];
 
 /** 端点实现：一个 Service，方法名 = typert 端点 method。 */
 class ToolsApi extends Service {
@@ -718,4 +718,64 @@ export function apply(ctx) {
   });
   const stopTrash = startTrashWatcher(() => retentionDays);
   ctx.on("dispose", stopTrash);
+
+  // ── 4. 定时心跳（类似 OpenClaw 心跳模式）：定期向主工作区 live agent 注入用户消息唤醒执行 ──
+  // 消息构造与官方 dsh-schedule 一致（role:user + source.plugin），无需依赖 dsh-llm。
+  let lastBeatAt = 0;
+  let heartbeatTimer = null;
+  const doHeartbeat = async () => {
+    try {
+      const cfg = getConfig();
+      if (!cfg.scheduleTask) return;
+      const agents = ctx.agents;
+      if (!agents || typeof agents.roots !== "function") return;
+      const base = (cfg.schedulePrompt || "").trim() ||
+        "【定时心跳】请检查当前是否有待办、提醒或需要主动汇报的事项；如有请简要汇报，没有则简短确认即可。";
+      const text = base.replace(/\{time\}/g, new Date().toLocaleString("zh-CN", { hour12: false }));
+      const message = {
+        role: "user",
+        id: crypto.randomUUID(),
+        content: [{ type: "text", text }],
+        source: { kind: "plugin", plugin: "dsh-toolbox" },
+      };
+      let injected = 0;
+      for (const agent of agents.roots()) {
+        try {
+          // 只心跳主工作区根的 live agent；渠道（ch-*）与子代理跳过
+          const cwd = agent?.session?.header?.cwd;
+          if (cwd && cwd !== WORKSPACE_ROOT) continue;
+          if (agent.id && String(agent.id).startsWith("ch-")) continue;
+          if (typeof agent.followup === "function") {
+            await agent.followup(message);
+            injected += 1;
+          }
+        } catch (e) {
+          logErr("heartbeat.followup", e);
+        }
+      }
+      if (injected > 0) log.info(`dsh-toolbox: 定时心跳已注入 ${injected} 个会话`);
+    } catch (e) {
+      logErr("heartbeat", e);
+    }
+  };
+  // 调度器：每 60 秒检查一次设置；开关开且距上次 ≥ 间隔（最小 5 分钟）→ 心跳
+  const startHeartbeat = () => {
+    if (heartbeatTimer) return;
+    heartbeatTimer = setInterval(async () => {
+      try {
+        const cfg = getConfig();
+        if (!cfg.scheduleTask) { lastBeatAt = 0; return; }
+        const minutes = Math.max(5, Math.floor(Number(cfg.scheduleInterval) || 60));
+        if (Date.now() - lastBeatAt >= minutes * 60 * 1000) {
+          lastBeatAt = Date.now();
+          await doHeartbeat();
+        }
+      } catch (e) {
+        logErr("heartbeat.scheduler", e);
+      }
+    }, 60 * 1000);
+    heartbeatTimer.unref?.();
+  };
+  startHeartbeat();
+  ctx.on("dispose", () => { if (heartbeatTimer) clearInterval(heartbeatTimer); });
 }

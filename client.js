@@ -82,6 +82,7 @@ window.__ModuleLoader__.load({
 
     /** 设置开关定义（与后端 settings.js 一致）。 */
     const SWITCHES = [
+      { key: "scheduleTask", label: "定时心跳", desc: "定时向主工作区会话注入心跳消息，唤醒守一执行巡检/汇报等任务（类似 OpenClaw 心跳模式）。⚠️ 会消耗 token；默认：关；间隔与提示语见下方（默认：60 分钟）", default: false },
       { key: "sessionManage", label: "会话管理", desc: "会话列表操作：删除 / 移动 / 复制 / 重设工作区根（默认：开）" },
       { key: "dialogueManage", label: "对话管理", desc: "⚠️ 需重启生效。会话内消息：截断到此 / 编辑消息（改内容并删除后续回复），操作后也需重启完整生效（默认：关）", default: false },
       { key: "workspaceManage", label: "子目录管理", desc: "工作区子目录：新增 / 重命名 / 删除 / 复制 / 移动（默认：开）" },
@@ -162,6 +163,27 @@ window.__ModuleLoader__.load({
         }
       };
 
+      const scheduleInterval = doc?.scheduleInterval ?? 60;
+      const setScheduleInterval = (value) => {
+        try {
+          tools["config.set"]("scheduleInterval", Math.max(5, Math.floor(Number(value) || 60)))
+            .then((resp) => setDoc(unwrap(resp) || {}))
+            .catch((e) => console.error("dsh-toolbox: config.set 拒绝(心跳间隔)", e));
+        } catch (e) {
+          console.error("dsh-toolbox: config.set 同步抛错(心跳间隔)", e);
+        }
+      };
+      const schedulePrompt = doc?.schedulePrompt ?? "";
+      const setSchedulePrompt = (value) => {
+        try {
+          tools["config.set"]("schedulePrompt", String(value || ""))
+            .then((resp) => setDoc(unwrap(resp) || {}))
+            .catch((e) => console.error("dsh-toolbox: config.set 拒绝(心跳提示语)", e));
+        } catch (e) {
+          console.error("dsh-toolbox: config.set 同步抛错(心跳提示语)", e);
+        }
+      };
+
       const row = (sw) => {
         const value = doc?.[sw.key] ?? (sw.default !== false);
         return jsx("div", {
@@ -186,6 +208,32 @@ window.__ModuleLoader__.load({
         children: [
           jsx("div", { style: { fontSize: 13, opacity: 0.7, marginBottom: 8 }, children: "每个功能可独立开关；带 ⚠️ 的切换后需重启生效。" }),
           ...SWITCHES.map(row),
+          jsx("div", {
+            style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8, borderTop: "1px solid rgba(128,128,128,0.15)", marginTop: 8 },
+            children: [
+              jsx("label", { style: { flex: 1 }, children: "心跳间隔（分钟，最小 5，默认 60）" }),
+              jsx("input", {
+                type: "number",
+                min: 5,
+                value: scheduleInterval,
+                onChange: (e) => setScheduleInterval(e.target.value),
+                style: { width: 72 },
+              }),
+            ],
+          }),
+          jsx("div", {
+            style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
+            children: [
+              jsx("label", { style: { flex: 1 }, children: "心跳提示语（{time} 自动替换为当前时间）" }),
+            ],
+          }),
+          jsx("textarea", {
+            value: schedulePrompt,
+            onChange: (e) => setSchedulePrompt(e.target.value),
+            placeholder: "留空使用默认提示语",
+            rows: 2,
+            style: { width: "100%", boxSizing: "border-box", fontSize: 12, padding: "6px 8px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit", outline: "none", marginBottom: 8, resize: "vertical" },
+          }),
           jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8, borderTop: "1px solid rgba(128,128,128,0.15)", marginTop: 8 },
             children: [
