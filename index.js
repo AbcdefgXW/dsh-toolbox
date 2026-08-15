@@ -66,6 +66,15 @@ const PLUGIN_STATE_DIR = path.join(fileURLToPath(new URL("./", import.meta.url))
 // 心跳运行状态（tools.debug 端点读取，排查用）
 let heartbeatState = { running: false, lastBeatAt: 0, lastResult: "", lastTarget: "" };
 
+/** 从渠道会话 ID 反推 {channel, peerId}（与 dsh-channels 的 SessionId 编码一致）。 */
+function parseChannelTarget(id) {
+  const s = String(id);
+  for (const [prefix, channel] of [["ch-weixin-", "weixin"], ["ch-qq-", "qq"], ["ch-feishu-", "feishu"]]) {
+    if (s.startsWith(prefix)) return { channel, peerId: s.slice(prefix.length) };
+  }
+  return null;
+}
+
 export const name = "dsh-toolbox";
 
 export const inject = ["settings", "typert", "agents"];
@@ -763,7 +772,20 @@ export function apply(ctx) {
       const target = String(targetOpt ?? "").trim();
       heartbeatState.lastBeatAt = Date.now();
       heartbeatState.lastTarget = target || "(主工作区根)";
-      if (target) {
+      if (target.startsWith("ch-")) {
+        // 渠道推送：调 dsh-channels 的 ChannelsPushApi（唤醒渠道 agent 执行，回复回传 IM）
+        const parsed = parseChannelTarget(target);
+        const pushSvc = ctx.get("dsh-channels-push");
+        if (pushSvc && parsed) {
+          const r = await pushSvc.task({ channel: parsed.channel, peerId: parsed.peerId, prompt: text });
+          heartbeatState.lastResult = r && r.ok ? "已推送渠道 " + target : "渠道推送失败：" + ((r && r.error) || "未知");
+          logHeart((r && r.ok ? "渠道推送 OK → " : "渠道推送失败 → ") + target + (r && r.error ? " (" + r.error + ")" : ""));
+          injected = r && r.ok ? 1 : 0;
+        } else {
+          heartbeatState.lastResult = "渠道推送服务不可用或目标无法解析（需 dsh-channels 提供 dsh-channels-push）";
+          logHeart("渠道推送不可用：" + target);
+        }
+      } else if (target) {
         // 查找目标 agent：优先 registry 直查，再 roots 遍历（渠道 agent 可能不在 roots）
         let agent = null;
         try { if (typeof agents.get === "function") agent = agents.get(target); } catch {}
