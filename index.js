@@ -723,7 +723,7 @@ export function apply(ctx) {
   // 消息构造与官方 dsh-schedule 一致（role:user + source.plugin），无需依赖 dsh-llm。
   let lastBeatAt = 0;
   let heartbeatTimer = null;
-  const doHeartbeat = async () => {
+  const doHeartbeat = async (targetOpt) => {
     try {
       const cfg = getConfig();
       if (!cfg.scheduleTask) return;
@@ -739,8 +739,8 @@ export function apply(ctx) {
         source: { kind: "plugin", plugin: "dsh-toolbox" },
       };
       let injected = 0;
-      // 目标会话：scheduleTarget 指定则只注入该会话；未指定默认主工作区根
-      const target = String(cfg.scheduleTarget || "").trim();
+      // 目标会话：调用方传入（间隔=scheduleTarget / 定点=scheduleCronTarget），空 = 主工作区根
+      const target = String(targetOpt ?? "").trim();
       if (target) {
         const agent = agents.roots().find((a) => a.id === target);
         if (agent && typeof agent.followup === "function") {
@@ -792,7 +792,7 @@ export function apply(ctx) {
       if (key === lastCronKey) return;
       lastCronKey = key;
       log.info("dsh-toolbox: 定点定时触发 " + JSON.stringify(cron));
-      await doHeartbeat();
+      await doHeartbeat(cfg.scheduleCronTarget);
     } catch (e) {
       logErr("heartbeat.cron", e);
     }
@@ -810,7 +810,7 @@ export function apply(ctx) {
         const minutes = Math.max(5, Math.floor(Number(cfg.scheduleInterval) || 60));
         if (Date.now() - lastBeatAt >= minutes * 60 * 1000) {
           lastBeatAt = Date.now();
-          await doHeartbeat();
+          await doHeartbeat(cfg.scheduleTarget);
         }
         await checkCron();
       } catch (e) {
