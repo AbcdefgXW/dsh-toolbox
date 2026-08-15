@@ -187,6 +187,19 @@ window.__ModuleLoader__.load({
           jsx("div", { style: { fontSize: 13, opacity: 0.7, marginBottom: 8 }, children: "每个功能可独立开关；带 ⚠️ 的切换后需重启生效。" }),
           ...SWITCHES.map(row),
           jsx("div", {
+            style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8, borderTop: "1px solid rgba(128,128,128,0.15)", marginTop: 8 },
+            children: [
+              jsx("label", { style: { flex: 1 }, children: "折叠行数阈值（用户/AI 消息超过该行数即折叠，默认 15，0 = 不折叠）" }),
+              jsx("input", {
+                type: "number",
+                min: 0,
+                value: threshold,
+                onChange: (e) => setThreshold(e.target.value),
+                style: { width: 72 },
+              }),
+            ],
+          }),
+          jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
             children: [
               jsx("label", { style: { flex: 1 }, children: "回收站保留天数（0 = 不自动清除）" }),
@@ -200,19 +213,6 @@ window.__ModuleLoader__.load({
             ],
           }),
           jsx("div", { style: { fontSize: 12, opacity: 0.6, marginTop: 8 }, children: "回收站自动清除：启动时 + 每 6 小时扫描一次。" }),
-          jsx("div", {
-            style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8, borderTop: "1px solid rgba(128,128,128,0.15)", marginTop: 8 },
-            children: [
-              jsx("label", { style: { flex: 1 }, children: "折叠行数阈值（用户/AI 消息超过该行数即折叠，默认 15，0 = 不折叠）" }),
-              jsx("input", {
-                type: "number",
-                min: 0,
-                value: threshold,
-                onChange: (e) => setThreshold(e.target.value),
-                style: { width: 72 },
-              }),
-            ],
-          }),
         ],
       });
     }
