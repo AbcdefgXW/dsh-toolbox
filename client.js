@@ -82,7 +82,7 @@ window.__ModuleLoader__.load({
 
     /** 设置开关定义（与后端 settings.js 一致）。 */
     const SWITCHES = [
-      { key: "scheduleTask", label: "定时心跳", desc: "定时向主工作区会话注入心跳消息，唤醒守一执行巡检/汇报等任务（类似 OpenClaw 心跳模式）。⚠️ 会消耗 token；默认：关；间隔与提示语见下方（默认：60 分钟）", default: false },
+      { key: "scheduleTask", label: "定时心跳", desc: "定时向主工作区会话注入心跳消息，唤醒 AI 执行巡检/汇报等任务（类似 OpenClaw 心跳模式）。⚠️ 会消耗 token；默认：关；间隔与提示语见下方（默认：60 分钟）", default: false },
       { key: "sessionManage", label: "会话管理", desc: "会话列表操作：删除 / 移动 / 复制 / 重设工作区根（默认：开）" },
       { key: "dialogueManage", label: "对话管理", desc: "⚠️ 需重启生效。会话内消息：截断到此 / 编辑消息（改内容并删除后续回复），操作后也需重启完整生效（默认：关）", default: false },
       { key: "workspaceManage", label: "子目录管理", desc: "工作区子目录：新增 / 重命名 / 删除 / 复制 / 移动（默认：开）" },
@@ -776,7 +776,7 @@ window.__ModuleLoader__.load({
                             flex: 1, fontSize: 12,
                             fontWeight: root === currentRoot ? 700 : 500,
                             opacity: root === currentRoot ? 1 : 0.6,
-                            color: root === "/workspace" ? "#4caf50" : root === "(未分组)" ? "#e8a33d" : undefined,
+                            color: root === "(未分组)" ? "#e8a33d" : "#4caf50", // 正式工作区绿、未分组橙（通用，不写死具体路径）
                             cursor: "pointer", userSelect: "none",
                           },
                           onClick: () => toggleCollapsed(root),
@@ -1082,7 +1082,7 @@ window.__ModuleLoader__.load({
       const { msgs, busy, isCurrent, onClose, onTruncate, onEdit, summary, readonly, onJump, id, onCopy } = props;
       const [expanded, setExpanded] = React.useState({});
       const [copied, setCopied] = React.useState(false);
-      const roleLabel = (r) => r === "user" ? "我" : "守一";
+      const roleLabel = (r) => r === "user" ? "我" : "AI";
       const roleColor = (r) => r === "user" ? "#4caf50" : "#4a8fd6";
       const fmtTime = (ms) => { const d = new Date(ms); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
       const doCopy = () => {
