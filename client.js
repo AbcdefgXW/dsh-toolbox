@@ -1815,14 +1815,21 @@ window.__ModuleLoader__.load({
         );
         // 设置页「预设编辑」分组：自定义 agent（~/.agent-presets）在线编辑入口
         const PresetsSection = () => {
-          // 订阅设置：presetEdit 关闭时显示关闭提示（不渲染编辑器）
-          const [scope] = React.useState(() => ctx.settingsScope.bind({ namespace: "dsh-tools" }));
-          const snap = React.useSyncExternalStore(
-            (cb) => scope.subscribe(cb),
-            () => scope.getSnapshot(),
-          );
-          const doc = snap && snap.value;
-          if (doc && doc.presetEdit === false) {
+          // 开关存插件自己的 state/settings.json（dsh settings 文档对 Web 白名单限制，
+          // 无法走 settingsScope 事件）→ 轻量轮询（2s，本地 JSON 读取开销极小）
+          const [presetOn, setPresetOn] = React.useState(null);
+          React.useEffect(() => {
+            let alive = true;
+            const poll = () => {
+              tools["config.get"]()
+                .then((resp) => { if (alive) setPresetOn((unwrap(resp) || {}).presetEdit !== false); })
+                .catch(() => {});
+            };
+            poll();
+            const timer = setInterval(poll, 2000);
+            return () => { alive = false; clearInterval(timer); };
+          }, [tools, unwrap]);
+          if (presetOn === false) {
             return jsx("div", { style: { padding: 16, opacity: 0.6, fontSize: 13 }, children: "预设编辑已关闭（设置 → 工具箱 → 预设编辑 可重新开启）" });
           }
           return jsx(PresetsTab, { tools, unwrap, run: undefined });
