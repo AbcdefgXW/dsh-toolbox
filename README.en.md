@@ -22,7 +22,21 @@
 
 ## 📸 Screenshots
 
-<!-- TODO: add screenshots here -->
+**Session Management** (delete / duplicate / move / reset / tags / view / empty-session labeling):
+
+![Session Management](assets/session-manage.png)
+
+**Trash Bin** (deleted sessions go to trash; restore / purge / preview):
+
+![Trash Bin](assets/session-trash.png)
+
+**Subdirectory Management** (create / rename / delete / duplicate directories under a workspace):
+
+![Subdirectories](assets/subdirs.png)
+
+**Settings** (per-feature toggles + scheduled heartbeat / collapse threshold etc.):
+
+![Settings](assets/settings.png)
 
 ## Requirements
 
