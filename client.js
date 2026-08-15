@@ -1814,37 +1814,34 @@ window.__ModuleLoader__.load({
           ),
         );
         // 设置页「预设编辑」分组：自定义 agent（~/.agent-presets）在线编辑入口
-        const PresetsSection = () => {
-          // 开关存插件自己的 state/settings.json（dsh settings 文档对 Web 白名单限制，
-          // 无法走 settingsScope 事件）→ 轻量轮询（2s，本地 JSON 读取开销极小）
-          const [presetOn, setPresetOn] = React.useState(null);
-          React.useEffect(() => {
-            let alive = true;
-            const poll = () => {
-              tools["config.get"]()
-                .then((resp) => { if (alive) setPresetOn((unwrap(resp) || {}).presetEdit !== false); })
-                .catch(() => {});
-            };
-            poll();
-            const timer = setInterval(poll, 2000);
-            return () => { alive = false; clearInterval(timer); };
-          }, [tools, unwrap]);
-          if (presetOn === false) {
-            return jsx("div", { style: { padding: 16, opacity: 0.6, fontSize: 13 }, children: "预设编辑已关闭（设置 → 工具箱 → 预设编辑 可重新开启）" });
-          }
-          return jsx(PresetsTab, { tools, unwrap, run: undefined });
-        };
-        ctx.slots.inject("settings.section", () =>
-          ctx.slots.register(
-            {
-              name: "settings.section",
-              id: "dsh-toolbox-presets",
-              order: 110,
-              label: () => "预设编辑",
-            },
+        // 动态显隐：presetEdit 开关关闭 → 整个分组（含标题）移除；开启 → 恢复。
+        // 轮询放 apply 层而非组件内（组件随条目移除被卸载，轮询必须独立存活）。
+        const PresetsSection = () => jsx(PresetsTab, { tools, unwrap, run: undefined });
+        let presetsDisposer = null;
+        const registerPresets = () => {
+          if (presetsDisposer) return;
+          presetsDisposer = ctx.slots.register(
+            { name: "settings.section", id: "dsh-toolbox-presets", order: 110, label: () => "预设编辑" },
             PresetsSection,
-          ),
-        );
+          );
+        };
+        const unregisterPresets = () => {
+          if (presetsDisposer) { presetsDisposer(); presetsDisposer = null; }
+        };
+        registerPresets(); // 默认显示
+        let lastPresetOn = null;
+        const pollPresets = () => {
+          tools["config.get"]()
+            .then((resp) => {
+              const on = (unwrap(resp) || {}).presetEdit !== false;
+              if (on === lastPresetOn) return;
+              lastPresetOn = on;
+              if (on) registerPresets(); else unregisterPresets();
+            })
+            .catch(() => {});
+        };
+        const presetsTimer = setInterval(pollPresets, 2000);
+        ctx.on("dispose", () => { clearInterval(presetsTimer); unregisterPresets(); });
       }).catch((err) => {
         console.error("dsh-toolbox: remote 挂载失败，工具箱不可用", err);
       });
