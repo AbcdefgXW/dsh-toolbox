@@ -11,6 +11,7 @@
 ## ✨ Features
 
 - **💬 Session Management**: delete (to trash), duplicate (official fork with `-copyN` naming), move (between workspaces), reset workspace root, tag grouping (click-to-select editor for existing tags to avoid typos; tag management: delete/rename, renaming merges duplicates), view session content (read-only), conversation management (truncate/edit, disabled by default), empty sessions auto-labeled as `(empty session) workspace-name`
+- **⏰ Scheduled Heartbeat**: wake the AI on a schedule to run checkups/reports (OpenClaw-style heartbeat) — two schedulers: **interval heartbeat** (every N minutes) and **fixed-time schedule** (daily at HH:mm / weekly on a weekday / monthly on a date), each with its own prompt and target; targets can be the **main workspace root (internal checkup), any session, or 📱 WeChat / QQ / Feishu IM channels** (wakes the channel bot and pushes the AI reply back to your phone; requires the dsh-channels plugin)
 - **📃 Long-message Collapse**: messages longer than the threshold (15 lines by default, configurable) auto-collapse with an "expand all" button; on by default for user messages, off for AI replies (pure render-layer enhancement, no data modification)
 - **🗑️ Trash Bin**: deleted sessions/subdirectories go to trash (30-day retention by default, configurable); restore / purge / preview deleted session content
 - **📁 Subdirectory Management**: create / rename / delete / duplicate directories under a workspace, batch-assign sessions
@@ -36,7 +37,9 @@
 
 **Settings** (per-feature toggles + scheduled heartbeat / collapse threshold etc.):
 
-![Settings](assets/settings.png)
+![Settings 1](assets/settings-1.png)
+
+![Settings 2](assets/settings-2.png)
 
 ## Requirements
 
@@ -94,6 +97,7 @@ Defaults apply when unset; all other paths are derived from the plugin's own dir
 - **Runtime data** lives in the plugin `state/` directory (settings, trash, backups, tags) — excluded from the repo via `.gitignore`
 - The plugin reads/writes: `$DSH_HOME/sessions/` (session files, multi-frame zstd), `$DSH_HOME/storages/workspace.json` (workspace registry), and the dsh config file (only when using the config editor)
 - **Delete = move to trash** (30-day retention by default, restorable) — never a physical delete
+- **IM channel push notes**: when scheduled heartbeat pushes to IM channels, WeChat uses a simulated web protocol (ilinkai) — **frequent proactive messaging carries account risk-control risk**; keep the interval ≥ 15 minutes, keep prompt content normal, and avoid bursts of pushes. QQ Open Platform proactive messages require applying for the **"proactive message permission"** (pushes fail silently without it). Feishu uses the official API — compliant and safe.
 - **Conversation management (truncate/edit)**: modifies session files and requires a container restart to take full effect; disabled by default, enable it explicitly in settings
 
 ## Development
