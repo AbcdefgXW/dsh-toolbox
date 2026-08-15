@@ -90,6 +90,8 @@ window.__ModuleLoader__.load({
       { key: "configEditor", label: "配置编辑器", desc: "「打开配置文件」在线编辑能力，dsh 默认只读（默认：开）" },
       { key: "customSearch", label: "自研搜索", desc: "关键词搜索所有会话内容：高亮 + 跳转 + 可取消（默认：开）" },
       { key: "officialSearch", label: "官方搜索开关", desc: "⚠️ 需重启生效。启用 dsh 官方全文搜索（openAt: startup）（默认：关）", default: false },
+      { key: "collapseUserMsg", label: "用户长消息折叠", desc: "你发送的消息超过「折叠行数阈值」时自动折叠显示，点击「展开全部」查看（默认：开；改后刷新页面生效）" },
+      { key: "collapseAiMsg", label: "AI 长消息折叠", desc: "AI 回复超过「折叠行数阈值」时自动折叠显示（默认：关；阈值同上）", default: false },
     ];
 
     /** 设置表单组件（渲染到 设置 → 工具箱 分组）。 */
@@ -109,6 +111,19 @@ window.__ModuleLoader__.load({
       React.useEffect(() => {
         refresh();
       }, [refresh]);
+
+      // 折叠引擎设置同步：设置变化立即写入 window.__dsdCollapse（无需刷新页面）
+      React.useEffect(() => {
+        if (!doc) return;
+        try {
+          window.__dsdCollapse = window.__dsdCollapse || {};
+          window.__dsdCollapse.userOn = doc.collapseUserMsg !== false;
+          window.__dsdCollapse.userThreshold = Number(doc.collapseUserThreshold) > 0 ? Number(doc.collapseUserThreshold) : 15;
+          window.__dsdCollapse.aiOn = doc.collapseAiMsg === true;
+          // 重扫：已折叠的按新设置恢复/重新折叠
+          if (typeof window.__dsdScan === "function") setTimeout(window.__dsdScan, 100);
+        } catch {}
+      }, [doc]);
 
       if (!tools || typeof tools["config.set"] !== "function") {
         return jsx("div", { style: { padding: 16, opacity: 0.6 }, children: "工具箱加载中…" });
@@ -133,6 +148,17 @@ window.__ModuleLoader__.load({
             .catch((e) => console.error("dsh-toolbox: config.set 拒绝(天数)", e));
         } catch (e) {
           console.error("dsh-toolbox: config.set 同步抛错(天数)", e);
+        }
+      };
+
+      const threshold = doc?.collapseUserThreshold ?? 15;
+      const setThreshold = (value) => {
+        try {
+          tools["config.set"]("collapseUserThreshold", Math.max(0, Math.floor(Number(value) || 0)))
+            .then((resp) => setDoc(unwrap(resp) || {}))
+            .catch((e) => console.error("dsh-toolbox: config.set 拒绝(阈值)", e));
+        } catch (e) {
+          console.error("dsh-toolbox: config.set 同步抛错(阈值)", e);
         }
       };
 
@@ -174,6 +200,19 @@ window.__ModuleLoader__.load({
             ],
           }),
           jsx("div", { style: { fontSize: 12, opacity: 0.6, marginTop: 8 }, children: "回收站自动清除：启动时 + 每 6 小时扫描一次。" }),
+          jsx("div", {
+            style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8, borderTop: "1px solid rgba(128,128,128,0.15)", marginTop: 8 },
+            children: [
+              jsx("label", { style: { flex: 1 }, children: "折叠行数阈值（用户/AI 消息超过该行数即折叠，默认 15，0 = 不折叠）" }),
+              jsx("input", {
+                type: "number",
+                min: 0,
+                value: threshold,
+                onChange: (e) => setThreshold(e.target.value),
+                style: { width: 72 },
+              }),
+            ],
+          }),
         ],
       });
     }
@@ -1491,6 +1530,107 @@ window.__ModuleLoader__.load({
     }
 
     function apply(ctx) {
+      // ── 0. 长消息折叠引擎（纯渲染增强：超阈值行数的消息自动折叠，点击展开） ──
+      // 设置存 window.__dsdCollapse（设置页改动即时同步，见 ToolsSettingsSection）
+      window.__dsdCollapse = window.__dsdCollapse || { userOn: true, userThreshold: 15, aiOn: false };
+      try {
+        // 折叠样式（前缀 dsd- 防冲突）
+        if (!document.getElementById("dsh-toolbox-collapse-css")) {
+          const st = document.createElement("style");
+          st.id = "dsh-toolbox-collapse-css";
+          st.textContent = [
+            ".dsd-fold { position: relative; }",
+            ".dsd-fold.dsd-folded { max-height: var(--dsd-fold-h, 360px); overflow: hidden; }",
+            ".dsd-fold.dsd-folded::after { content: \"\"; position: absolute; left: 0; right: 0; bottom: 0; height: 44px; background: linear-gradient(transparent, var(--dsw-specific-surface-float, #1c1c20)); pointer-events: none; }",
+            ".dsd-fold.dsd-open { max-height: none; overflow: visible; }",
+            ".dsd-fold.dsd-open::after { display: none; }",
+            ".dsd-fold-btn { position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); z-index: 5; font-size: 12px; cursor: pointer; user-select: none; border: none; border-radius: 999px; padding: 2px 12px; color: var(--dsw-alias-label-primary, #eee); background: var(--dsw-specific-button-secondary, rgba(128,128,128,0.4)); white-space: nowrap; }",
+            ".dsd-fold-btn:hover { background: var(--dsw-specific-button-secondary-hover, rgba(128,128,128,0.6)); }",
+          ].join("\n");
+          document.head.appendChild(st);
+        }
+        // 处理单个候选容器：超阈值 → 折叠 + 按钮；设置关闭 → 恢复展开（幂等）
+        const foldTarget = (el) => {
+          if (!el) return;
+          const cfg = window.__dsdCollapse || {};
+          const want = el.dataset.dsdKind === "ai" ? cfg.aiOn === true : cfg.userOn !== false;
+          const threshold = Number(cfg.userThreshold) > 0 ? Number(cfg.userThreshold) : 15;
+          if (!want || threshold <= 0) {
+            if (el.dataset.dsdFold === "1") {
+              el.classList.remove("dsd-fold", "dsd-folded", "dsd-open");
+              const btn = el.querySelector(".dsd-fold-btn");
+              if (btn) btn.remove();
+              delete el.dataset.dsdFold;
+            }
+            return;
+          }
+          if (el.dataset.dsdFold === "1") return; // 已处理
+          let lineH = 24;
+          try { lineH = parseFloat(getComputedStyle(el).lineHeight) || 24; } catch {}
+          const maxH = Math.round(threshold * lineH) + 24; // 阈值行高 + 余量
+          let fullH = 0;
+          try { fullH = el.scrollHeight; } catch { return; }
+          if (fullH <= maxH) return; // 不够长，不折叠
+          el.dataset.dsdFold = "1";
+          el.classList.add("dsd-fold", "dsd-folded");
+          el.style.setProperty("--dsd-fold-h", maxH + "px");
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "dsd-fold-btn";
+          btn.textContent = "展开全部 ▾";
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const open = el.classList.toggle("dsd-open");
+            el.classList.toggle("dsd-folded", !open);
+            btn.textContent = open ? "收起 ▴" : "展开全部 ▾";
+          });
+          el.appendChild(btn);
+        };
+        // 在新增子树里找候选：用户气泡（_userRow 内 _bubble）与 AI markdown（_markdown）
+        const scan = (root) => {
+          const cfg = window.__dsdCollapse || {};
+          try {
+            if (cfg.userOn !== false) {
+              root.querySelectorAll('div[class*="_userRow"] div[class*="_bubble"]').forEach((el) => { el.dataset.dsdKind = "user"; foldTarget(el); });
+            }
+            if (cfg.aiOn === true) {
+              root.querySelectorAll('div[class*="_markdown"]').forEach((el) => { el.dataset.dsdKind = "ai"; foldTarget(el); });
+            }
+          } catch {}
+        };
+        // 设置变化后重扫（设置页同步 window.__dsdCollapse 后调用）
+        window.__dsdScan = () => { try { scan(document.body); } catch {} };
+        // MutationObserver：监听消息列表变化（防抖）
+        let scanTimer = null;
+        const observer = new MutationObserver((muts) => {
+          const cfg = window.__dsdCollapse || {};
+          if (cfg.userOn === false && cfg.aiOn !== true) return;
+          if (scanTimer) return; // 已在队列中
+          scanTimer = setTimeout(() => {
+            scanTimer = null;
+            try {
+              let any = false;
+              for (const m of muts) {
+                if (m.type !== "childList" || !m.addedNodes) continue;
+                for (const n of m.addedNodes) {
+                  if (n.nodeType !== 1) continue;
+                  scan(n);
+                  any = true;
+                }
+              }
+              // 首次全量扫描一次（页面已有历史消息）
+              if (!observer._dsdBoot) { observer._dsdBoot = true; scan(document.body); }
+            } catch {}
+          }, 300);
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        // 首次全量扫描（历史消息也折叠）
+        setTimeout(() => { try { scan(document.body); } catch {} }, 800);
+      } catch (e) {
+        console.warn("dsh-toolbox: 折叠引擎启动失败", e);
+      }
+
       // ── 1. 注册后端端点（生成 ctx.remote.dshToolbox.* 调用方法） ──
       ctx.remote.$mount({ package: "dsh-toolbox", descriptors: DESCRIPTORS }).then(() => {
         // ── 2. 设置分组（设置 → 工具箱）：$mount 完成后再注册，组件能拿到 tools
@@ -1498,6 +1638,19 @@ window.__ModuleLoader__.load({
         const tools = ctx.get("remote.dsh-toolbox");
         console.log("dsh-toolbox: $mount 完成 | tools =", typeof tools, "| tools 键 =", tools ? Object.keys(tools).slice(0, 6).join(",") : "无");
         const unwrap = (resp) => (resp && typeof resp === "object" && resp.ok === true && resp.value !== undefined ? resp.value : resp);
+        // 初始化折叠设置（页面加载即用真实配置；设置页改动由 ToolsSettingsSection 同步）
+        try {
+          if (tools && typeof tools["config.get"] === "function") {
+            tools["config.get"]().then((resp) => {
+              const d = unwrap(resp) || {};
+              window.__dsdCollapse = window.__dsdCollapse || {};
+              window.__dsdCollapse.userOn = d.collapseUserMsg !== false;
+              window.__dsdCollapse.userThreshold = Number(d.collapseUserThreshold) > 0 ? Number(d.collapseUserThreshold) : 15;
+              window.__dsdCollapse.aiOn = d.collapseAiMsg === true;
+              if (typeof window.__dsdScan === "function") setTimeout(window.__dsdScan, 100);
+            }).catch(() => {});
+          }
+        } catch (e) { console.warn("dsh-toolbox: 折叠设置初始化失败", e); }
         // 打开会话（官方 sessions 服务）；带 keyword/seq 时定位到关键词所在消息
         const openSession = (sessionId, keyword, seq) => {
           try {
