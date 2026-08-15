@@ -287,6 +287,19 @@ window.__ModuleLoader__.load({
       }, [tools, unwrap]);
       const dialogueOn = cfg.dialogueManage === true; // 默认关：只有显式开启才显示对话按钮
 
+      // 当前 tab 被开关隐藏时自动切回可用 tab
+      React.useEffect(() => {
+        const avail = ["sessions", "trash", "subdirs", "search", "presets", "config", "archived"].filter((t) => {
+          if (t === "sessions") return cfg.sessionManage !== false;
+          if (t === "subdirs") return cfg.workspaceManage !== false;
+          if (t === "search") return cfg.customSearch !== false;
+          if (t === "presets") return cfg.presetEdit !== false;
+          if (t === "config") return cfg.configEditor !== false;
+          return true; // trash/archived 常显
+        });
+        if (!avail.includes(tab)) setTab(avail[0] || "trash");
+      }, [tab, cfg]);
+
       React.useEffect(() => {
         if (!props.open) return;
         refreshSessions();
@@ -603,12 +616,12 @@ window.__ModuleLoader__.load({
             ] }),
           ] }),
           jsx("div", { style: { display: "flex", alignItems: "center", flexWrap: "wrap", marginBottom: 8 }, children: [
-            tabBtn("sessions", "会话", "💬"),
+            cfg.sessionManage !== false && tabBtn("sessions", "会话", "💬"),
             tabBtn("trash", "回收站", "🗑️"),
-            tabBtn("subdirs", "子目录", "📁"),
-            tabBtn("search", "搜索", "🔍"),
-            tabBtn("presets", "预设", "⚙️"),
-            tabBtn("config", "配置", "📄"),
+            cfg.workspaceManage !== false && tabBtn("subdirs", "子目录", "📁"),
+            cfg.customSearch !== false && tabBtn("search", "搜索", "🔍"),
+            cfg.presetEdit !== false && tabBtn("presets", "预设", "⚙️"),
+            cfg.configEditor !== false && tabBtn("config", "配置", "📄"),
             tabBtn("archived", "归档", "🗄"),
           ] }),
           msg ? jsx("div", { style: { fontSize: 12, marginBottom: 6, opacity: 0.85 }, children: msg }) : null,
@@ -1801,7 +1814,19 @@ window.__ModuleLoader__.load({
           ),
         );
         // 设置页「预设编辑」分组：自定义 agent（~/.agent-presets）在线编辑入口
-        const PresetsSection = () => jsx(PresetsTab, { tools, unwrap, run: undefined });
+        const PresetsSection = () => {
+          // 订阅设置：presetEdit 关闭时显示关闭提示（不渲染编辑器）
+          const [scope] = React.useState(() => ctx.settingsScope.bind({ namespace: "dsh-tools" }));
+          const snap = React.useSyncExternalStore(
+            (cb) => scope.subscribe(cb),
+            () => scope.getSnapshot(),
+          );
+          const doc = snap && snap.value;
+          if (doc && doc.presetEdit === false) {
+            return jsx("div", { style: { padding: 16, opacity: 0.6, fontSize: 13 }, children: "预设编辑已关闭（设置 → 工具箱 → 预设编辑 可重新开启）" });
+          }
+          return jsx(PresetsTab, { tools, unwrap, run: undefined });
+        };
         ctx.slots.inject("settings.section", () =>
           ctx.slots.register(
             {
