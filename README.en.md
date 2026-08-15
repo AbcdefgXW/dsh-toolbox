@@ -10,7 +10,8 @@
 
 ## ✨ Features
 
-- **💬 Session Management**: delete (to trash), duplicate (official fork with `-copyN` naming), move (between workspaces), reset workspace root, tag grouping (plugin-managed), view session content (read-only), conversation management (truncate/edit, disabled by default), empty sessions auto-labeled as `(empty session) workspace-name`
+- **💬 Session Management**: delete (to trash), duplicate (official fork with `-copyN` naming), move (between workspaces), reset workspace root, tag grouping (click-to-select editor for existing tags to avoid typos; tag management: delete/rename, renaming merges duplicates), view session content (read-only), conversation management (truncate/edit, disabled by default), empty sessions auto-labeled as `(empty session) workspace-name`
+- **📃 Long-message Collapse**: messages longer than the threshold (15 lines by default, configurable) auto-collapse with an "expand all" button; on by default for user messages, off for AI replies (pure render-layer enhancement, no data modification)
 - **🗑️ Trash Bin**: deleted sessions/subdirectories go to trash (30-day retention by default, configurable); restore / purge / preview deleted session content
 - **📁 Subdirectory Management**: create / rename / delete / duplicate directories under a workspace, batch-assign sessions
 - **🔍 Full-text Search**: search across all sessions (highlight + jump + cancellable; frame-by-frame streaming decompression for low memory; 60s cache per keyword)
