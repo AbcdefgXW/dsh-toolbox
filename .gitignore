@@ -1,0 +1,10 @@
+# 运行时数据（发布排除）
+state/
+*.log
+
+# 依赖
+node_modules/
+
+# 系统
+.DS_Store
+Thumbs.db
