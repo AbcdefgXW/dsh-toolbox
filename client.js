@@ -230,11 +230,28 @@ window.__ModuleLoader__.load({
           console.error("dsh-toolbox: config.set 同步抛错(定点目标)", e);
         }
       };
-      // 会话下拉选项（两个目标共用）
+      // 会话下拉选项（两个目标共用）：主工作区根 / 📱 IM 渠道 / 💬 其他会话
+      const channelName = (id) => {
+        if (String(id).startsWith("ch-weixin")) return "微信";
+        if (String(id).startsWith("ch-qq")) return "QQ";
+        if (String(id).startsWith("ch-feishu")) return "飞书";
+        return null;
+      };
+      const chSessions = sessList.filter((s) => channelName(s.sessionId));
+      const otherSessions = sessList.filter((s) => !channelName(s.sessionId));
       const sessOptions = [
-        jsx("option", { key: "", value: "", children: "主工作区根（默认）" }),
-        ...sessList.map((s) => jsx("option", { key: s.sessionId, value: s.sessionId, children: (s.cwd ? String(s.cwd).replace(/[/\\]+$/, "").split(/[/\\]/).pop() + " · " : "") + s.sessionId.slice(0, 18) + "…" })),
-      ];
+        jsx("option", { key: "", value: "", children: "主工作区根（默认，内部巡检）" }),
+        chSessions.length > 0 && jsx("optgroup", {
+          key: "ch",
+          label: "📱 IM 渠道（结果推送到手机）",
+          children: chSessions.map((s) => jsx("option", { key: s.sessionId, value: s.sessionId, children: "📱 " + channelName(s.sessionId) })),
+        }),
+        otherSessions.length > 0 && jsx("optgroup", {
+          key: "s",
+          label: "💬 其他会话",
+          children: otherSessions.map((s) => jsx("option", { key: s.sessionId, value: s.sessionId, children: (s.cwd ? String(s.cwd).replace(/[/\\]+$/, "").split(/[/\\]/).pop() + " · " : "") + s.sessionId.slice(0, 18) + "…" })),
+        }),
+      ].filter(Boolean);
 
       const row = (sw) => {
         const value = doc?.[sw.key] ?? (sw.default !== false);
@@ -306,7 +323,7 @@ window.__ModuleLoader__.load({
               }),
             ],
           }),
-          jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "间隔心跳注入到哪个会话：留空 = 主工作区根的所有会话；指定 = 只注入选中的会话（渠道会话除外）。" }),
+          jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "间隔心跳注入到哪：主工作区 = 内部巡检；选 📱 微信/QQ/飞书 = 结果定时推送到手机；指定会话 = 只注入该会话。" }),
           jsx("div", {
             style: { display: "flex", alignItems: "center", gap: 8, padding: "8px 0", flexWrap: "wrap" },
             children: [
@@ -355,7 +372,7 @@ window.__ModuleLoader__.load({
               }),
             ],
           }),
-          jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "定点定时注入到哪个会话：留空 = 主工作区根；指定 = 只注入选中的会话（与间隔心跳可不同）。" }),
+          jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "定点定时注入到哪：与间隔心跳可不同（如：间隔心跳主工作区巡检 + 每天 09:00 推送微信晨报）。" }),
 
           // ── 分区二：功能开关（含折叠） ──
           sectionTitle("🔧 功能开关"),
