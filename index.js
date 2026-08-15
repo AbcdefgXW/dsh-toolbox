@@ -723,13 +723,13 @@ export function apply(ctx) {
   // 消息构造与官方 dsh-schedule 一致（role:user + source.plugin），无需依赖 dsh-llm。
   let lastBeatAt = 0;
   let heartbeatTimer = null;
-  const doHeartbeat = async (targetOpt) => {
+  const doHeartbeat = async (targetOpt, promptOpt) => {
     try {
       const cfg = getConfig();
       if (!cfg.scheduleTask) return;
       const agents = ctx.agents;
       if (!agents || typeof agents.roots !== "function") return;
-      const base = (cfg.schedulePrompt || "").trim() ||
+      const base = String(promptOpt ?? cfg.schedulePrompt ?? "").trim() ||
         "【定时心跳】请检查当前是否有待办、提醒或需要主动汇报的事项；如有请简要汇报，没有则简短确认即可。";
       const text = base.replace(/\{time\}/g, new Date().toLocaleString("zh-CN", { hour12: false }));
       const message = {
@@ -792,7 +792,7 @@ export function apply(ctx) {
       if (key === lastCronKey) return;
       lastCronKey = key;
       log.info("dsh-toolbox: 定点定时触发 " + JSON.stringify(cron));
-      await doHeartbeat(cfg.scheduleCronTarget);
+      await doHeartbeat(cfg.scheduleCronTarget, cfg.scheduleCronPrompt);
     } catch (e) {
       logErr("heartbeat.cron", e);
     }

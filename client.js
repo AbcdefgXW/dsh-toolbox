@@ -96,6 +96,9 @@ window.__ModuleLoader__.load({
 
     /** 定时心跳开关（独立分区渲染，配置项紧跟其后）。 */
     const SWITCH_HEART = { key: "scheduleTask", label: "定时心跳", desc: "定时向目标会话注入心跳消息，唤醒 AI 执行巡检/汇报等任务（类似 OpenClaw 心跳模式）。⚠️ 会消耗 token；默认：关", default: false };
+    /** 提示语默认值（与后端 lib/settings.js 的 default 保持一致）。 */
+    const DEFAULT_HEART_PROMPT = "【定时心跳】请检查当前是否有待办、提醒或需要主动汇报的事项；如有请简要汇报，没有则简短确认即可。";
+    const DEFAULT_CRON_PROMPT = "【定时任务】现在是 {time}。请执行定时任务：检查待办与提醒、汇总值得告知用户的事项，并简明汇报。";
 
     /** 设置表单组件（渲染到 设置 → 工具箱 分组）。 */
     function ToolsSettingsSection(props) {
@@ -230,6 +233,16 @@ window.__ModuleLoader__.load({
           console.error("dsh-toolbox: config.set 同步抛错(定点目标)", e);
         }
       };
+      const scheduleCronPrompt = doc?.scheduleCronPrompt ?? "";
+      const setScheduleCronPrompt = (value) => {
+        try {
+          tools["config.set"]("scheduleCronPrompt", String(value || ""))
+            .then((resp) => setDoc(unwrap(resp) || {}))
+            .catch((e) => console.error("dsh-toolbox: config.set 拒绝(定点提示语)", e));
+        } catch (e) {
+          console.error("dsh-toolbox: config.set 同步抛错(定点提示语)", e);
+        }
+      };
       // 会话下拉选项（两个目标共用）：主工作区根 / 📱 IM 渠道 / 💬 其他会话
       const channelName = (id) => {
         if (String(id).startsWith("ch-weixin")) return "微信";
@@ -302,6 +315,11 @@ window.__ModuleLoader__.load({
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
             children: [
               jsx("label", { style: { flex: 1 }, children: "心跳提示语（{time} 自动替换为当前时间）" }),
+              jsx(P.Button, {
+                size: "sm", variant: "outline",
+                onClick: () => { if (window.confirm("恢复默认心跳提示语？将覆盖当前内容")) setSchedulePrompt(DEFAULT_HEART_PROMPT); },
+                children: "恢复默认",
+              }),
             ],
           }),
           jsx("textarea", {
@@ -373,6 +391,24 @@ window.__ModuleLoader__.load({
             ],
           }),
           jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "定点定时注入到哪：与间隔心跳可不同（如：间隔心跳主工作区巡检 + 每天 09:00 推送微信晨报）。" }),
+          jsx("div", {
+            style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
+            children: [
+              jsx("label", { style: { flex: 1 }, children: "定点定时提示语（与间隔心跳独立）" }),
+              jsx(P.Button, {
+                size: "sm", variant: "outline",
+                onClick: () => { if (window.confirm("恢复默认定点定时提示语？将覆盖当前内容")) setScheduleCronPrompt(DEFAULT_CRON_PROMPT); },
+                children: "恢复默认",
+              }),
+            ],
+          }),
+          jsx("textarea", {
+            value: scheduleCronPrompt,
+            onChange: (e) => setScheduleCronPrompt(e.target.value),
+            placeholder: "留空使用默认提示语",
+            rows: 2,
+            style: { width: "100%", boxSizing: "border-box", fontSize: 12, padding: "6px 8px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit", outline: "none", marginBottom: 8, resize: "vertical" },
+          }),
 
           // ── 分区二：功能开关（含折叠） ──
           sectionTitle("🔧 功能开关"),
