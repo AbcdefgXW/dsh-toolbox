@@ -63,6 +63,9 @@ import { createRequire } from "node:module";
 // 插件自身目录（发布到任意位置都能正确找到 state/）
 const PLUGIN_STATE_DIR = path.join(fileURLToPath(new URL("./", import.meta.url)), "state");
 
+// 心跳运行状态（tools.debug 端点读取，排查用）
+let heartbeatState = { running: false, lastBeatAt: 0, lastResult: "", lastTarget: "" };
+
 export const name = "dsh-toolbox";
 
 export const inject = ["settings", "typert", "agents"];
@@ -87,7 +90,7 @@ class ToolsApi extends Service {
     const all = await listAllSessions();
     return all.map((s) => {
       const stats = readSessionStatsLite(s.path, s.sessionId);
-      return { sessionId: s.sessionId, cwd: s.cwd, size: stats?.size ?? 0, turns: stats?.turns ?? 0 };
+      return { sessionId: s.sessionId, cwd: s.cwd, title: stats?.title ?? null, size: stats?.size ?? 0, turns: stats?.turns ?? 0 };
     });
   }
 
@@ -108,6 +111,20 @@ class ToolsApi extends Service {
         ? "已清空插件缓存并触发 GC（堆内存尽力回收）"
         : "已清空插件缓存；dsh 未开启 --expose-gc，无法强制 GC——彻底释放需重启容器",
     };
+  }
+
+  /** 调试信息：心跳运行状态 + live root agents 快照（排查渠道推送问题）。 */
+  async "tools.debug"() {
+    const agents = this.ctx.get("agents");
+    const roots = [];
+    try {
+      if (agents && typeof agents.roots === "function") {
+        for (const a of agents.roots()) {
+          roots.push({ id: a.id, cwd: a?.session?.header?.cwd, followup: typeof a.followup === "function" });
+        }
+      }
+    } catch {}
+    return { ok: true, heartbeat: { ...heartbeatState }, agents: roots };
   }
 
   async "sessions.header"(sessionId) {
@@ -702,6 +719,7 @@ export function apply(ctx) {
       invocation("trash.empty"),
       invocation("trash.purge", ["entryDir"]),
       invocation("tools.gc"),
+      invocation("tools.debug"),
     ],
   });
   log.info("dsh-toolbox: API 已注册（19 端点）");
@@ -723,6 +741,8 @@ export function apply(ctx) {
   // 消息构造与官方 dsh-schedule 一致（role:user + source.plugin），无需依赖 dsh-llm。
   let lastBeatAt = 0;
   let heartbeatTimer = null;
+  const HEART_LOG = path.join(PLUGIN_STATE_DIR, "heartbeat.log");
+  const logHeart = (msg) => { try { fs.appendFileSync(HEART_LOG, new Date().toISOString() + " " + msg + "\n", "utf-8"); } catch {} };
   const doHeartbeat = async (targetOpt, promptOpt) => {
     try {
       const cfg = getConfig();
@@ -741,13 +761,23 @@ export function apply(ctx) {
       let injected = 0;
       // 目标会话：调用方传入（间隔=scheduleTarget / 定点=scheduleCronTarget），空 = 主工作区根
       const target = String(targetOpt ?? "").trim();
+      heartbeatState.lastBeatAt = Date.now();
+      heartbeatState.lastTarget = target || "(主工作区根)";
       if (target) {
-        const agent = agents.roots().find((a) => a.id === target);
+        // 查找目标 agent：优先 registry 直查，再 roots 遍历（渠道 agent 可能不在 roots）
+        let agent = null;
+        try { if (typeof agents.get === "function") agent = agents.get(target); } catch {}
+        if (!agent) agent = agents.roots().find((a) => a.id === target) || null;
         if (agent && typeof agent.followup === "function") {
           await agent.followup(message);
           injected = 1;
+          heartbeatState.lastResult = "已注入 " + target;
+          logHeart("心跳注入 OK → " + target);
         } else {
-          log.info(`dsh-toolbox: 定时心跳目标会话未找到 ${target}`);
+          const ids = agents.roots().map((a) => a.id).join(" | ");
+          heartbeatState.lastResult = "未找到目标（roots: " + ids.slice(0, 300) + "）";
+          logHeart("心跳未找到目标 " + target + "；当前 roots: " + ids);
+          log.info(`dsh-toolbox: 定时心跳目标会话未找到 ${target}（roots: ${ids}）`);
         }
       } else {
         for (const agent of agents.roots()) {
@@ -764,9 +794,11 @@ export function apply(ctx) {
             logErr("heartbeat.followup", e);
           }
         }
+        heartbeatState.lastResult = "已注入 " + injected + " 个会话（主工作区根）";
       }
       if (injected > 0) log.info(`dsh-toolbox: 定时心跳已注入 ${injected} 个会话`);
     } catch (e) {
+      heartbeatState.lastResult = "异常: " + String(e).slice(0, 200);
       logErr("heartbeat", e);
     }
   };
@@ -806,6 +838,7 @@ export function apply(ctx) {
         const taskOn = cfg.scheduleTask === true;
         if (taskOn && prevTaskOn === false) lastBeatAt = Date.now(); // 刚打开：从现在起算
         prevTaskOn = taskOn;
+        heartbeatState.running = taskOn;
         if (!taskOn) { lastBeatAt = 0; return; }
         const minutes = Math.max(5, Math.floor(Number(cfg.scheduleInterval) || 60));
         if (Date.now() - lastBeatAt >= minutes * 60 * 1000) {

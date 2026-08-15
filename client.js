@@ -64,6 +64,7 @@ window.__ModuleLoader__.load({
       ["config.get", []],
       ["config.set", ["key", "value"]],
       ["tools.gc", []],
+      ["tools.debug", []],
     ].map(([method, params]) => ({
       id: `dsh-toolbox#${method}`,
       service: "dsh-toolbox-api",
@@ -243,28 +244,21 @@ window.__ModuleLoader__.load({
           console.error("dsh-toolbox: config.set 同步抛错(定点提示语)", e);
         }
       };
-      // 会话下拉选项（两个目标共用）：主工作区根 / 📱 IM 渠道 / 💬 其他会话
-      const channelName = (id) => {
-        if (String(id).startsWith("ch-weixin")) return "微信";
-        if (String(id).startsWith("ch-qq")) return "QQ";
-        if (String(id).startsWith("ch-feishu")) return "飞书";
-        return null;
-      };
-      const chSessions = sessList.filter((s) => channelName(s.sessionId));
-      const otherSessions = sessList.filter((s) => !channelName(s.sessionId));
+      // 会话下拉选项（两个目标共用）：主工作区根 / 按工作区分组列出所有会话（含 IM 渠道，未来接新渠道自然归组）
+      const baseOf = (p) => String(p || "").replace(/[/\\]+$/, "").split(/[/\\]/).pop() || "未分组";
+      const groups = {};
+      for (const s of sessList) {
+        const g = baseOf(s.cwd);
+        (groups[g] ||= []).push(s);
+      }
       const sessOptions = [
         jsx("option", { key: "", value: "", children: "主工作区根（默认，内部巡检）" }),
-        chSessions.length > 0 && jsx("optgroup", {
-          key: "ch",
-          label: "📱 IM 渠道（结果推送到手机）",
-          children: chSessions.map((s) => jsx("option", { key: s.sessionId, value: s.sessionId, children: "📱 " + channelName(s.sessionId) })),
-        }),
-        otherSessions.length > 0 && jsx("optgroup", {
-          key: "s",
-          label: "💬 其他会话",
-          children: otherSessions.map((s) => jsx("option", { key: s.sessionId, value: s.sessionId, children: (s.cwd ? String(s.cwd).replace(/[/\\]+$/, "").split(/[/\\]/).pop() + " · " : "") + s.sessionId.slice(0, 18) + "…" })),
-        }),
-      ].filter(Boolean);
+        ...Object.keys(groups).sort().map((g) => jsx("optgroup", {
+          key: g,
+          label: "📁 " + g,
+          children: groups[g].map((s) => jsx("option", { key: s.sessionId, value: s.sessionId, children: (s.title || "(无标题)") + " · " + s.sessionId.slice(0, 14) + "…" })),
+        })),
+      ];
 
       const row = (sw) => {
         const value = doc?.[sw.key] ?? (sw.default !== false);
