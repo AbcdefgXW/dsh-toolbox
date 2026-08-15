@@ -53,7 +53,7 @@ import {
 import { getConfig, setConfigField } from "./lib/config.js";
 import { listPresets, readPresetFile, savePresetFile } from "./lib/presets.js";
 import { decompressFirstFrame } from "./lib/zstd.js";
-import { listTags, setSessionTags, removeTag } from "./lib/tags.js";
+import { listTags, setSessionTags, removeTag, renameTag } from "./lib/tags.js";
 import { listMessages, truncateSessionAt, editMessageAt } from "./lib/messages.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -315,6 +315,10 @@ class ToolsApi extends Service {
 
   async "tags.remove"(tag) {
     return removeTag(tag);
+  }
+
+  async "tags.rename"(oldTag, newTag) {
+    return renameTag(oldTag, newTag);
   }
 
   // ── 对话管理（截断/编辑，安全模型：只允许删尾或改尾） ──
@@ -683,6 +687,7 @@ export function apply(ctx) {
       invocation("tags.list"),
       invocation("tags.set", ["sessionId", "tags"]),
       invocation("tags.remove", ["tag"]),
+      invocation("tags.rename", ["oldTag", "newTag"]),
       invocation("messages.list", ["sessionId", "limit"]),
       invocation("messages.truncate", ["sessionId", "seq"]),
       invocation("messages.edit", ["sessionId", "seq", "content"]),

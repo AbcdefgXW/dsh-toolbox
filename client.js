@@ -47,6 +47,7 @@ window.__ModuleLoader__.load({
       ["tags.list", []],
       ["tags.set", ["sessionId", "tags"]],
       ["tags.remove", ["tag"]],
+      ["tags.rename", ["oldTag", "newTag"]],
       ["messages.list", ["sessionId", "limit"]],
       ["messages.truncate", ["sessionId", "seq"]],
       ["messages.edit", ["sessionId", "seq", "content"]],
@@ -684,7 +685,10 @@ window.__ModuleLoader__.load({
           title: list && list.byId && list.byId[tagEditorFor] ? list.byId[tagEditorFor].displayTitle : tagEditorFor,
           current: tags.bySession[tagEditorFor] || [],
           all: tags.all || [],
+          bySession: tags.bySession || {},
           busy,
+          run,
+          onTagsChanged: refreshTags,
           onClose: () => setTagEditorFor(null),
           onSave: (next) => {
             run("标签", () => tools["tags.set"](tagEditorFor, next)).then(refreshTags);
@@ -1048,11 +1052,12 @@ window.__ModuleLoader__.load({
       return "（空会话）" + (base && base !== "?" ? base : "未命名");
     }
 
-    /** 标签编辑器：点选已有标签（避免手输错字符产生分裂标签）+ 输入新标签 */
+    /** 标签编辑器：点选已有标签（避免手输错字符产生分裂标签）+ 输入新标签 + 管理（删除/重命名） */
     function TagEditor(props) {
-      const { title, current, all, onSave, onClose, busy } = props;
+      const { title, current, all, bySession, onSave, onClose, busy, onTagsChanged, run } = props;
       const [selected, setSelected] = React.useState([...(current || [])]);
       const [input, setInput] = React.useState("");
+      const [manage, setManage] = React.useState(false);
       const toggle = (tag) => {
         setSelected((s) => (s.includes(tag) ? s.filter((t) => t !== tag) : [...s, tag]));
       };
@@ -1063,6 +1068,30 @@ window.__ModuleLoader__.load({
         setInput("");
       };
       const available = (all || []).filter((t) => !selected.includes(t));
+      // 标签使用数统计
+      const usage = {};
+      for (const ts of Object.values(bySession || {})) {
+        for (const t of ts || []) usage[t] = (usage[t] || 0) + 1;
+      }
+      const renameTag = (oldTag) => {
+        const next = window.prompt("重命名标签「" + oldTag + "」为（留空取消；与已有标签同名 = 合并）：", oldTag);
+        if (next === null) return;
+        const target = next.trim();
+        if (!target || target === oldTag) return;
+        run("重命名标签", () => tools["tags.rename"](oldTag, target))
+          .then(() => {
+            setSelected((s) => (s.includes(oldTag) ? [...new Set([...s.filter((t) => t !== oldTag), target])] : s));
+            onTagsChanged && onTagsChanged();
+          });
+      };
+      const deleteTag = (tag) => {
+        if (!window.confirm("删除标签「" + tag + "」？将从所有会话移除（会话本身不动）")) return;
+        run("删除标签", () => tools["tags.remove"](tag))
+          .then(() => {
+            setSelected((s) => s.filter((t) => t !== tag));
+            onTagsChanged && onTagsChanged();
+          });
+      };
       const chip = (text, onClick, prefix) => jsx("span", {
         key: text,
         onClick,
@@ -1084,26 +1113,44 @@ window.__ModuleLoader__.load({
           onClick: (e) => e.stopPropagation(),
           children: [
             jsx("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }, children: [
-              jsx("div", { style: { flex: 1, fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: "🏷 设置标签：" + (title || "") }),
+              jsx("div", { style: { flex: 1, fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: manage ? "🗑 管理标签" : "🏷 设置标签：" + (title || "") }),
               jsx(P.Button, { size: "sm", variant: "outline", onClick: onClose, children: "✕" }),
             ] }),
-            jsx("div", { style: { display: "flex", gap: 6, marginBottom: 12 }, children: [
-              jsx("input", {
-                value: input,
-                onChange: (e) => setInput(e.target.value),
-                onKeyDown: (e) => { if (e.key === "Enter") addNew(); },
-                placeholder: "输入新标签（多个用逗号分隔）",
-                style: { flex: 1, minWidth: 0, fontSize: 13, padding: "5px 8px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit", outline: "none" },
-              }),
-              jsx(P.Button, { size: "sm", onClick: addNew, children: "添加" }),
+            manage ? jsx("div", { style: { flex: 1, overflowY: "auto", marginBottom: 10 }, children: [
+              jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 6 }, children: "全部标签（含使用数），可重命名/删除：" }),
+              Object.keys(usage).length === 0
+                ? jsx("div", { style: { fontSize: 12, opacity: 0.5, padding: 8 }, children: "（还没有任何标签）" })
+                : Object.keys(usage).sort((a, b) => usage[b] - usage[a]).map((t) => jsx("div", {
+                    key: t,
+                    style: { display: "flex", alignItems: "center", gap: 6, padding: "5px 4px", borderBottom: "1px solid rgba(128,128,128,0.1)" },
+                    children: [
+                      jsx("span", { style: { flex: 1, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: t + "（" + usage[t] + " 个会话）" }),
+                      jsx(P.Button, { size: "sm", disabled: busy, onClick: () => renameTag(t), children: "重命名" }),
+                      jsx(P.Button, { size: "sm", disabled: busy, onClick: () => deleteTag(t), children: "删除" }),
+                    ],
+                  })),
+            ] }) : jsx("div", { children: [
+              jsx("div", { style: { display: "flex", gap: 6, marginBottom: 12 }, children: [
+                jsx("input", {
+                  value: input,
+                  onChange: (e) => setInput(e.target.value),
+                  onKeyDown: (e) => { if (e.key === "Enter") addNew(); },
+                  placeholder: "输入新标签（多个用逗号分隔）",
+                  style: { flex: 1, minWidth: 0, fontSize: 13, padding: "5px 8px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit", outline: "none" },
+                }),
+                jsx(P.Button, { size: "sm", onClick: addNew, children: "添加" }),
+              ] }),
+              jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 6 }, children: "已选（点击移除）：" }),
+              jsx("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }, children: selected.length === 0 ? jsx("span", { style: { fontSize: 12, opacity: 0.5 }, children: "（无）" }) : selected.map((t) => chip(t, () => toggle(t), "✕ ")) }),
+              jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 6 }, children: "已有标签（点击添加，无需手输）：" }),
+              jsx("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }, children: available.length === 0 ? jsx("span", { style: { fontSize: 12, opacity: 0.5 }, children: "（没有其他标签）" }) : available.map((t) => chip(t, () => toggle(t), "+ ")) }),
             ] }),
-            jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 6 }, children: "已选（点击移除）：" }),
-            jsx("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }, children: selected.length === 0 ? jsx("span", { style: { fontSize: 12, opacity: 0.5 }, children: "（无）" }) : selected.map((t) => chip(t, () => toggle(t), "✕ ")) }),
-            jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 6 }, children: "已有标签（点击添加，无需手输）：" }),
-            jsx("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }, children: available.length === 0 ? jsx("span", { style: { fontSize: 12, opacity: 0.5 }, children: "（没有其他标签）" }) : available.map((t) => chip(t, () => toggle(t), "+ ")) }),
-            jsx("div", { style: { display: "flex", justifyContent: "flex-end", gap: 6 }, children: [
-              jsx(P.Button, { size: "sm", variant: "outline", onClick: onClose, children: "取消" }),
-              jsx(P.Button, { size: "sm", variant: "primary", disabled: busy, onClick: () => onSave(selected), children: "保存" }),
+            jsx("div", { style: { display: "flex", justifyContent: "space-between", gap: 6, alignItems: "center" }, children: [
+              jsx(P.Button, { size: "sm", variant: "outline", onClick: () => setManage(!manage), children: manage ? "← 返回选择" : "🗑 管理标签" }),
+              jsx("div", { style: { display: "flex", gap: 6 }, children: [
+                jsx(P.Button, { size: "sm", variant: "outline", onClick: onClose, children: "取消" }),
+                !manage && jsx(P.Button, { size: "sm", variant: "primary", disabled: busy, onClick: () => onSave(selected), children: "保存" }),
+              ] }),
             ] }),
           ],
         }),
