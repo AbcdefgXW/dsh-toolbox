@@ -64,7 +64,47 @@ import { createRequire } from "node:module";
 const PLUGIN_STATE_DIR = path.join(fileURLToPath(new URL("./", import.meta.url)), "state");
 
 // 心跳运行状态（tools.debug 端点读取，排查用）
-let heartbeatState = { running: false, lastBeatAt: 0, lastResult: "", lastTarget: "" };
+let heartbeatState = { running: false, lastBeatAt: 0, lastResult: "", lastTarget: "", nextIntervalBeatAt: null, nextCronAt: null };
+
+/** 计算定点定时（daily/weekly/monthly）的下一次触发时间戳；无效/关闭返回 null。 */
+function nextCronTime(cron, now = new Date()) {
+  if (!cron || cron.type === "off" || !cron.time) return null;
+  const parts = String(cron.time).split(":").map(Number);
+  if (parts.length < 2 || Number.isNaN(parts[0]) || Number.isNaN(parts[1])) return null;
+  const [h, m] = parts;
+  const base = new Date(now);
+  base.setSeconds(0, 0);
+  if (cron.type === "daily") {
+    const t = new Date(base); t.setHours(h, m, 0, 0);
+    if (t.getTime() <= now.getTime()) t.setDate(t.getDate() + 1);
+    return t.getTime();
+  }
+  if (cron.type === "weekly") {
+    const diff = (Number(cron.day) - now.getDay() + 7) % 7;
+    const t = new Date(base); t.setHours(h, m, 0, 0);
+    t.setDate(t.getDate() + diff);
+    if (t.getTime() <= now.getTime()) t.setDate(t.getDate() + 7);
+    return t.getTime();
+  }
+  if (cron.type === "monthly") {
+    const t = new Date(base); t.setHours(h, m, 0, 0);
+    t.setDate(Number(cron.date));
+    if (t.getTime() <= now.getTime()) t.setMonth(t.getMonth() + 1);
+    return t.getTime();
+  }
+  return null;
+}
+
+/** 从配置解析定点定时对象；无效返回 null。 */
+function cronFromCfg(cfg) {
+  try {
+    const raw = String(cfg?.scheduleCron || "off").trim();
+    if (raw === "off") return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
 
 /** 从渠道会话 ID 反推 {channel, peerId}（与 dsh-channels 的 SessionId 编码一致）。 */
 function parseChannelTarget(id) {
@@ -861,10 +901,19 @@ export function apply(ctx) {
         if (taskOn && prevTaskOn === false) lastBeatAt = Date.now(); // 刚打开：从现在起算
         prevTaskOn = taskOn;
         heartbeatState.running = taskOn;
-        if (!taskOn) { lastBeatAt = 0; return; }
+        if (!taskOn) {
+          lastBeatAt = 0;
+          heartbeatState.nextIntervalBeatAt = null;
+          heartbeatState.nextCronAt = null;
+          return;
+        }
         const minutes = Math.max(5, Math.floor(Number(cfg.scheduleInterval) || 60));
+        // 下次触发时间（tools.debug 读取，前端倒计时用）
+        heartbeatState.nextIntervalBeatAt = lastBeatAt ? lastBeatAt + minutes * 60 * 1000 : null;
+        heartbeatState.nextCronAt = nextCronTime(cronFromCfg(cfg), new Date());
         if (Date.now() - lastBeatAt >= minutes * 60 * 1000) {
           lastBeatAt = Date.now();
+          heartbeatState.nextIntervalBeatAt = lastBeatAt + minutes * 60 * 1000;
           await doHeartbeat(cfg.scheduleTarget);
         }
         await checkCron();

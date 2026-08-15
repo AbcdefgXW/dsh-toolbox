@@ -214,6 +214,34 @@ window.__ModuleLoader__.load({
           .then((resp) => setSessList(unwrap(resp) || []))
           .catch(() => {});
       }, [tools, unwrap]);
+      // 下次触发倒计时：拉 tools.debug 的下次时间戳（60s 刷新），本地 1s tick 渲染
+      const [nextTimes, setNextTimes] = React.useState({ interval: null, cron: null });
+      const [, setNowTick] = React.useState(Date.now());
+      React.useEffect(() => {
+        if (!tools || typeof tools["tools.debug"] !== "function") return;
+        let alive = true;
+        const pull = () => {
+          tools["tools.debug"]()
+            .then((resp) => {
+              if (!alive) return;
+              const hb = (unwrap(resp) || {}).heartbeat || {};
+              setNextTimes({ interval: hb.nextIntervalBeatAt || null, cron: hb.nextCronAt || null });
+            })
+            .catch(() => {});
+        };
+        pull();
+        const t1 = setInterval(pull, 60000);
+        const t2 = setInterval(() => setNowTick(Date.now()), 1000);
+        return () => { alive = false; clearInterval(t1); clearInterval(t2); };
+      }, [tools, unwrap]);
+      const fmtCountdown = (ts) => {
+        if (!ts) return null;
+        const diff = ts - Date.now();
+        if (diff <= 0) return "即将触发";
+        const s = Math.floor(diff / 1000);
+        const hh = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;
+        return hh > 0 ? `${hh} 小时 ${mm} 分` : mm > 0 ? `${mm} 分 ${ss} 秒` : `${ss} 秒`;
+      };
       const scheduleTarget = String(doc?.scheduleTarget || "");
       const setScheduleTarget = (value) => {
         try {
@@ -296,6 +324,7 @@ window.__ModuleLoader__.load({
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
             children: [
               jsx("label", { style: { flex: 1 }, children: "心跳间隔（分钟，最小 5，默认 60）" }),
+              jsx("span", { style: { fontSize: 11, opacity: 0.55, whiteSpace: "nowrap" }, children: fmtCountdown(nextTimes.interval) ? "⏱ 距下次 " + fmtCountdown(nextTimes.interval) : "" }),
               jsx("input", {
                 type: "number",
                 min: 5,
@@ -340,6 +369,7 @@ window.__ModuleLoader__.load({
             style: { display: "flex", alignItems: "center", gap: 8, padding: "8px 0", flexWrap: "wrap" },
             children: [
               jsx("label", { style: { flex: "none" }, children: "定点定时" }),
+              jsx("span", { style: { fontSize: 11, opacity: 0.55, whiteSpace: "nowrap" }, children: fmtCountdown(nextTimes.cron) ? "⏱ 距下次 " + fmtCountdown(nextTimes.cron) : "" }),
               jsx("select", {
                 value: cron.type,
                 onChange: (e) => setCronField({ type: e.target.value }),
