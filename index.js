@@ -758,7 +758,33 @@ export function apply(ctx) {
       logErr("heartbeat", e);
     }
   };
-  // 调度器：每 60 秒检查一次设置；开关开且距上次 ≥ 间隔（最小 5 分钟）→ 心跳
+  // 调度器：每 60 秒检查一次设置；开关开且距上次 ≥ 间隔（最小 5 分钟）→ 心跳；
+  // 另检查定点定时（每天/每周/每月，分钟级，同分钟不重复触发）
+  let lastCronKey = "";
+  const checkCron = async () => {
+    try {
+      const cfg = getConfig();
+      if (!cfg.scheduleTask) return;
+      let cron = null;
+      try {
+        const raw = String(cfg.scheduleCron || "off").trim();
+        if (raw !== "off") cron = JSON.parse(raw);
+      } catch {}
+      if (!cron || cron.type === "off" || !cron.time) return;
+      const now = new Date();
+      const hm = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
+      if (hm !== String(cron.time)) return;
+      if (cron.type === "weekly" && now.getDay() !== Number(cron.day)) return;
+      if (cron.type === "monthly" && now.getDate() !== Number(cron.date)) return;
+      const key = now.toISOString().slice(0, 16);
+      if (key === lastCronKey) return;
+      lastCronKey = key;
+      log.info("dsh-toolbox: 定点定时触发 " + JSON.stringify(cron));
+      await doHeartbeat();
+    } catch (e) {
+      logErr("heartbeat.cron", e);
+    }
+  };
   const startHeartbeat = () => {
     if (heartbeatTimer) return;
     heartbeatTimer = setInterval(async () => {
@@ -770,6 +796,7 @@ export function apply(ctx) {
           lastBeatAt = Date.now();
           await doHeartbeat();
         }
+        await checkCron();
       } catch (e) {
         logErr("heartbeat.scheduler", e);
       }

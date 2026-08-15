@@ -183,6 +183,23 @@ window.__ModuleLoader__.load({
           console.error("dsh-toolbox: config.set 同步抛错(心跳提示语)", e);
         }
       };
+      // 定点定时（每天/每周/每月）：JSON 存取
+      let cron = { type: "off", time: "09:00", day: 1, date: 1 };
+      try {
+        const raw = String(doc?.scheduleCron || "off").trim();
+        if (raw !== "off") cron = { ...cron, ...JSON.parse(raw) };
+      } catch {}
+      const setCronField = (patch) => {
+        const next = { ...cron, ...patch };
+        const value = next.type === "off" ? "off" : JSON.stringify({ type: next.type, time: next.time, day: next.day, date: next.date });
+        try {
+          tools["config.set"]("scheduleCron", value)
+            .then((resp) => setDoc(unwrap(resp) || {}))
+            .catch((e) => console.error("dsh-toolbox: config.set 拒绝(定点定时)", e));
+        } catch (e) {
+          console.error("dsh-toolbox: config.set 同步抛错(定点定时)", e);
+        }
+      };
 
       const row = (sw) => {
         const value = doc?.[sw.key] ?? (sw.default !== false);
@@ -234,6 +251,42 @@ window.__ModuleLoader__.load({
             rows: 2,
             style: { width: "100%", boxSizing: "border-box", fontSize: 12, padding: "6px 8px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit", outline: "none", marginBottom: 8, resize: "vertical" },
           }),
+          jsx("div", {
+            style: { display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderTop: "1px solid rgba(128,128,128,0.15)", marginTop: 8, flexWrap: "wrap" },
+            children: [
+              jsx("label", { style: { flex: "none" }, children: "定点定时" }),
+              jsx("select", {
+                value: cron.type,
+                onChange: (e) => setCronField({ type: e.target.value }),
+                style: { fontSize: 12, padding: "3px 6px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit" },
+                children: [
+                  jsx("option", { value: "off", children: "关闭" }),
+                  jsx("option", { value: "daily", children: "每天" }),
+                  jsx("option", { value: "weekly", children: "每周" }),
+                  jsx("option", { value: "monthly", children: "每月" }),
+                ],
+              }),
+              cron.type !== "off" && jsx("input", {
+                type: "time",
+                value: cron.time,
+                onChange: (e) => setCronField({ time: e.target.value }),
+                style: { fontSize: 12, padding: "3px 6px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit" },
+              }),
+              cron.type === "weekly" && jsx("select", {
+                value: String(cron.day),
+                onChange: (e) => setCronField({ day: Number(e.target.value) }),
+                style: { fontSize: 12, padding: "3px 6px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit" },
+                children: ["周日", "周一", "周二", "周三", "周四", "周五", "周六"].map((label, i) => jsx("option", { key: i, value: String(i), children: label })),
+              }),
+              cron.type === "monthly" && jsx("select", {
+                value: String(cron.date),
+                onChange: (e) => setCronField({ date: Number(e.target.value) }),
+                style: { fontSize: 12, padding: "3px 6px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit" },
+                children: Array.from({ length: 31 }, (_, i) => jsx("option", { key: i + 1, value: String(i + 1), children: i + 1 + " 号" })),
+              }),
+            ],
+          }),
+          jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "在指定时间点触发一次心跳（如每天 09:00、每周一 09:00、每月 1 号 09:00）；需同时开启上方「定时心跳」开关。" }),
           jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8, borderTop: "1px solid rgba(128,128,128,0.15)", marginTop: 8 },
             children: [
