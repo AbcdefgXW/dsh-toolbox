@@ -115,7 +115,7 @@ function parseChannelTarget(id) {
   return null;
 }
 
-export const name = "dsh-toolbox";
+export const name = "dsh-toolbox-web";
 
 export const inject = ["settings", "typert", "agents"];
 

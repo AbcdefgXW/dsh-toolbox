@@ -1,4 +1,4 @@
-# dsh-toolbox
+# dsh-toolbox-web
 
 [English](README.en.md) | [简体中文](README.md)
 
@@ -53,25 +53,25 @@
 
 ```bash
 # From a GitHub repository (auto-clone + install deps)
-dsh plugin --profile web add github:AbcdefgXW/dsh-toolbox
+dsh plugin --profile web add github:AbcdefgXW/dsh-toolbox-web
 
 # Or from npm if published
-dsh plugin --profile web add dsh-toolbox
+dsh plugin --profile web add dsh-toolbox-web
 ```
 
 If it is not auto-registered, add to `cordis.patch.yml` in the profile:
 
 ```yaml
 - insert:
-    - id: dsh-toolbox
-      name: dsh-toolbox
+    - id: dsh-toolbox-web
+      name: dsh-toolbox-web
 ```
 
 ### Option 2: Manual
 
 ```bash
-git clone https://github.com/AbcdefgXW/dsh-toolbox.git
-cd dsh-toolbox
+git clone https://github.com/AbcdefgXW/dsh-toolbox-web.git
+cd dsh-toolbox-web
 npm install --omit=dev
 ```
 

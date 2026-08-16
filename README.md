@@ -1,4 +1,4 @@
-# dsh-toolbox
+# dsh-toolbox-web
 
 [English](README.en.md) | [简体中文](README.md)
 
@@ -53,25 +53,25 @@
 
 ```bash
 # GitHub 仓库分发（自动 clone + 装依赖）
-dsh plugin --profile web add github:AbcdefgXW/dsh-toolbox
+dsh plugin --profile web add github:AbcdefgXW/dsh-toolbox-web
 
 # 或已发布 npm 包
-dsh plugin --profile web add dsh-toolbox
+dsh plugin --profile web add dsh-toolbox-web
 ```
 
 若未自动注册，在 profile 的 `cordis.patch.yml` 加入：
 
 ```yaml
 - insert:
-    - id: dsh-toolbox
-      name: dsh-toolbox
+    - id: dsh-toolbox-web
+      name: dsh-toolbox-web
 ```
 
 ### 方式二：手动
 
 ```bash
-git clone https://github.com/AbcdefgXW/dsh-toolbox.git
-cd dsh-toolbox
+git clone https://github.com/AbcdefgXW/dsh-toolbox-web.git
+cd dsh-toolbox-web
 npm install --omit=dev
 ```
 
@@ -118,7 +118,7 @@ npm install --omit=dev
 
 ## IM 渠道推送（可选）
 
-定时心跳的「📱 微信 / QQ / 飞书」目标是**可选集成**：dsh-toolbox 通过 cordis 服务 `dsh-channels-push` 调用渠道插件完成「唤醒渠道 bot 执行任务 → AI 回复回传 IM」。
+定时心跳的「📱 微信 / QQ / 飞书」目标是**可选集成**：dsh-toolbox-web 通过 cordis 服务 `dsh-channels-push` 调用渠道插件完成「唤醒渠道 bot 执行任务 → AI 回复回传 IM」。
 
 - **dsh-msg-hub** 为自研渠道桥插件（微信 ilinkai / QQ 开放平台 / 飞书开放平台），**不随本仓库分发**，需单独安装（[dsh-msg-hub](https://github.com/AbcdefgXW/dsh-msg-hub)）
 - 未安装该服务时：渠道目标不可用（选择后会提示"渠道推送服务不可用"），主工作区根 / 指定会话的心跳不受任何影响
