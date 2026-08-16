@@ -43,6 +43,7 @@ import {
   getOfficialSearchState,
   clearSearchCache,
 } from "./lib/search.js";
+import { buildEmbedIndex, embedQuery } from "./lib/embed.js";
 import {
   trashItem,
   listTrash,
@@ -338,6 +339,45 @@ class ToolsApi extends Service {
   async "search.query"(keyword, signal) {
     const hits = await searchSessions(keyword, signal);
     return { ok: true, hits };
+  }
+
+  /** 语义搜索：embedding 查询；失败/无索引 → {ok:false, fallback:true}（前端降级关键词搜索）。 */
+  async "search.embed"(keyword) {
+    const cfg = getConfig();
+    if (!cfg.embedSearch) return { ok: false, fallback: true, error: "语义搜索未开启" };
+    if (!String(cfg.embedApiKey || "").trim()) return { ok: false, fallback: true, error: "未配置 embedding API Key（设置 → 工具箱 → 语义搜索）" };
+    try {
+      return await embedQuery(cfg, String(keyword || "").trim());
+    } catch (err) {
+      return { ok: false, fallback: true, error: String(err) };
+    }
+  }
+
+  /** 构建/增量更新语义索引（异步任务，前端调用后轮询状态）。 */
+  async "search.embedBuild"() {
+    const cfg = getConfig();
+    if (!cfg.embedSearch) return { ok: false, fallback: true, error: "语义搜索未开启" };
+    try {
+      const r = await buildEmbedIndex(cfg, listAllSessions, async (sessionPath, limit) => {
+        const out = await listMessages(sessionPath, limit);
+        return (out && out.messages) || [];
+      });
+      return { ok: true, ...r };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  }
+
+  /** 语义索引状态。 */
+  async "search.embedStatus"() {
+    try {
+      const idx = JSON.parse(fs.readFileSync(path.join(PLUGIN_STATE_DIR, "embed-index.json"), "utf-8"));
+      let total = 0;
+      for (const s of Object.values(idx.sessions || {})) total += (s.items || []).length;
+      return { ok: true, total, builtAt: idx.builtAt || 0 };
+    } catch {
+      return { ok: true, total: 0, builtAt: 0 };
+    }
   }
 
   async "officialSearch.get"() {
@@ -743,6 +783,9 @@ export function apply(ctx) {
       invocation("workspace.delete", ["name", "sessionsAction"]),
       invocation("workspace.copy", ["name"]),
       invocation("search.query", ["keyword"], true),
+      invocation("search.embed", ["keyword"]),
+      invocation("search.embedBuild"),
+      invocation("search.embedStatus"),
       invocation("officialSearch.get"),
       invocation("officialSearch.set", ["enabled"]),
       invocation("config.get"),

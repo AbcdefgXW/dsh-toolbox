@@ -39,6 +39,9 @@ window.__ModuleLoader__.load({
       ["workspace.delete", ["name", "sessionsAction"]],
       ["workspace.copy", ["name"]],
       ["search.query", ["keyword"]],
+      ["search.embed", ["keyword"]],
+      ["search.embedBuild", []],
+      ["search.embedStatus", []],
       ["officialSearch.get", []],
       ["officialSearch.set", ["enabled"]],
       ["presets.list", []],
@@ -93,6 +96,7 @@ window.__ModuleLoader__.load({
       { key: "officialSearch", label: "官方搜索开关", desc: "⚠️ 需重启生效。启用 dsh 官方全文搜索（openAt: startup）（默认：关）", default: false },
       { key: "collapseUserMsg", label: "用户长消息折叠", desc: "你发送的消息超过「折叠行数阈值」时自动折叠显示，点击「展开全部」查看（默认：开；改后刷新页面生效）" },
       { key: "collapseAiMsg", label: "AI 长消息折叠", desc: "AI 回复超过「折叠行数阈值」时自动折叠显示（默认：关；阈值同上）", default: false },
+      { key: "embedSearch", label: "语义搜索", desc: "在线 embedding 语义搜索（需配置下方 API Key；无 Key/失败自动降级关键词搜索；默认：关）", default: false },
     ];
 
     /** 定时心跳开关（独立分区渲染，配置项紧跟其后）。 */
@@ -166,6 +170,19 @@ window.__ModuleLoader__.load({
             .catch((e) => console.error("dsh-toolbox: config.set 拒绝(阈值)", e));
         } catch (e) {
           console.error("dsh-toolbox: config.set 同步抛错(阈值)", e);
+        }
+      };
+      // 语义搜索配置
+      const embedBaseUrl = doc?.embedBaseUrl ?? "https://api.siliconflow.cn/v1";
+      const embedApiKey = doc?.embedApiKey ?? "";
+      const embedModel = doc?.embedModel ?? "BAAI/bge-m3";
+      const setEmbedField = (key, value) => {
+        try {
+          tools["config.set"](key, value)
+            .then((resp) => setDoc(unwrap(resp) || {}))
+            .catch((e) => console.error("dsh-toolbox: config.set 拒绝(" + key + ")", e));
+        } catch (e) {
+          console.error("dsh-toolbox: config.set 同步抛错(" + key + ")", e);
         }
       };
 
@@ -450,6 +467,44 @@ window.__ModuleLoader__.load({
               }),
             ],
           }),
+          jsx("div", {
+            style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
+            children: [
+              jsx("label", { style: { flex: 1 }, children: "Embedding API 地址" }),
+              jsx("input", {
+                type: "text",
+                value: embedBaseUrl,
+                onChange: (e) => setEmbedField("embedBaseUrl", e.target.value),
+                style: { width: 260, fontSize: 12, padding: "3px 6px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit" },
+              }),
+            ],
+          }),
+          jsx("div", {
+            style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
+            children: [
+              jsx("label", { style: { flex: 1 }, children: "Embedding API Key" }),
+              jsx("input", {
+                type: "password",
+                value: embedApiKey,
+                onChange: (e) => setEmbedField("embedApiKey", e.target.value),
+                placeholder: "sk-...",
+                style: { width: 260, fontSize: 12, padding: "3px 6px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit" },
+              }),
+            ],
+          }),
+          jsx("div", {
+            style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
+            children: [
+              jsx("label", { style: { flex: 1 }, children: "Embedding 模型" }),
+              jsx("input", {
+                type: "text",
+                value: embedModel,
+                onChange: (e) => setEmbedField("embedModel", e.target.value),
+                style: { width: 260, fontSize: 12, padding: "3px 6px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit" },
+              }),
+            ],
+          }),
+          jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "语义搜索：搜索 Tab 勾选「语义」后按语义匹配；无 Key 或 API 失败自动降级为关键词搜索（不影响现有功能）。" }),
 
           // ── 分区三：回收站 ──
           sectionTitle("🗑️ 回收站"),
@@ -1693,6 +1748,7 @@ window.__ModuleLoader__.load({
       const abortRef = React.useRef(null);
       // 已点击的记录标记（本轮搜索内生效；新搜索/手动清除时重置）
       const [clicked, setClicked] = React.useState({});
+      const [semantic, setSemantic] = React.useState(false); // 语义搜索模式
 
       // 状态变化写回持久层（重开面板恢复）
       React.useEffect(() => {
@@ -1710,6 +1766,66 @@ window.__ModuleLoader__.load({
         abortRef.current = ctrl;
         setSearching(true);
         setMsg("");
+        if (semantic) {
+          // 语义搜索：确保索引 → embedding 查询 → 失败降级关键词
+          const doEmbed = () => {
+            tools["search.embed"](keyword, ctrl.signal)
+              .then((resp) => {
+                const r = unwrap(resp);
+                if (r && r.ok === false && r.fallback) {
+                  // 降级：提示后走关键词搜索
+                  setMsg("🧠 语义搜索不可用（" + ((r && r.error) || "未知") + "）→ 已降级为关键词搜索");
+                  tools["search.query"](keyword, ctrl.signal)
+                    .then((resp2) => {
+                      const r2 = unwrap(resp2);
+                      const arr = r2 && r2.hits ? r2.hits : [];
+                      setHits(arr);
+                      if (arr.length === 0) setMsg("无命中");
+                    })
+                    .catch(() => {});
+                  return;
+                }
+                if (r && r.ok && r.hits) {
+                  const arr = r.hits.map((h) => ({ sessionId: h.sessionId, seq: h.seq, score: h.score, semantic: true }));
+                  setHits(arr);
+                  if (arr.length === 0) setMsg("语义无命中");
+                  else setMsg("🧠 语义命中 " + arr.length + " 条（共索引 " + (r.total || "?") + " 条消息）");
+                  return;
+                }
+                setMsg("语义搜索异常：" + ((r && r.error) || "未知"));
+              })
+              .catch((e) => {
+                if (e && e.name !== "AbortError") setMsg("语义搜索失败：" + (e.message || String(e)));
+              })
+              .finally(() => { setSearching(false); abortRef.current = null; });
+          };
+          // 先确保索引
+          tools["search.embedStatus"]()
+            .then((resp) => {
+              const st = unwrap(resp);
+              if (st && st.total > 0) { doEmbed(); return; }
+              return tools["search.embedBuild"]().then((resp2) => {
+                const b = unwrap(resp2);
+                if (b && b.ok === false && b.fallback) {
+                  setMsg("🧠 语义搜索不可用（" + ((b && b.error) || "索引构建失败") + "）→ 已降级为关键词搜索");
+                  tools["search.query"](keyword, ctrl.signal)
+                    .then((resp3) => {
+                      const r3 = unwrap(resp3);
+                      setHits((r3 && r3.hits) || []);
+                      if (!r3 || !r3.hits || r3.hits.length === 0) setMsg("无命中");
+                    })
+                    .catch(() => {});
+                  setSearching(false);
+                  abortRef.current = null;
+                  return;
+                }
+                setMsg("🧠 首次索引构建完成，开始语义搜索…");
+                doEmbed();
+              });
+            })
+            .catch((e) => { setMsg("索引状态失败：" + (e.message || String(e))); setSearching(false); abortRef.current = null; });
+          return;
+        }
         tools["search.query"](keyword, ctrl.signal)
           .then((resp) => {
             const r = unwrap(resp);
@@ -1762,8 +1878,8 @@ window.__ModuleLoader__.load({
           },
           title: "点击打开会话并定位",
           children: [
-            jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 2 }, children: title + " · 第 " + h.line + " 行" }),
-            jsx("div", { style: { fontSize: 12, lineHeight: 1.5 }, children: highlight(h.snippet) }),
+            jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 2 }, children: title + (h.semantic ? " · 🎯 相关度 " + Math.round((h.score || 0) * 100) + "%" : " · 第 " + h.line + " 行") }),
+            jsx("div", { style: { fontSize: 12, lineHeight: 1.5 }, children: h.semantic ? "（语义命中，点击打开会话定位）" : highlight(h.snippet) }),
           ],
         });
       };
@@ -1771,11 +1887,17 @@ window.__ModuleLoader__.load({
       return jsx("div", {
         children: [
           jsx("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }, children: [
+            jsx(P.Button, {
+              size: "sm", variant: semantic ? "primary" : "outline",
+              onClick: () => setSemantic(!semantic),
+              title: "语义搜索需要配置 Embedding API Key（设置 → 工具箱）；无 Key/失败自动降级",
+              children: semantic ? "🧠 语义" : "🔍 关键词",
+            }),
             jsx("input", {
               value: kw,
               onChange: (e) => setKw(e.target.value),
               onKeyDown: (e) => { if (e.key === "Enter") doSearch(); },
-              placeholder: "搜索所有会话内容…",
+              placeholder: semantic ? "用语义搜索所有会话（如：那次部署配置的事）…" : "搜索所有会话内容…",
               style: { flex: 1, minWidth: 160, padding: "5px 8px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "transparent", color: "inherit" },
             }),
             searching
