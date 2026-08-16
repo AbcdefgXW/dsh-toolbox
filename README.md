@@ -59,13 +59,9 @@ dsh plugin --profile web add github:AbcdefgXW/dsh-toolbox-web
 dsh plugin --profile web add dsh-toolbox-web
 ```
 
-若未自动注册，在 profile 的 `cordis.patch.yml` 加入：
-
-```yaml
-- insert:
-    - id: dsh-toolbox-web
-      name: dsh-toolbox-web
-```
+> `dsh plugin add` 会自动将本插件加入 profile 的 `dsh.profile.bundles` 并挂载插件自带的注册行（`cordis.patch.yml`），**无需也不应手动修改任何配置文件**。
+>
+> ⚠️ 排查注册问题时请检查 `package.json` 的 `dsh.profile.bundles` 是否包含 `dsh-toolbox-web`；**切勿**再在 profile 的 `cordis.patch.yml` 里手动 `insert` 本插件——bundles 已挂载时手动 insert 会导致 `duplicate loader entry id` 启动崩溃。
 
 ### 方式二：手动
 
