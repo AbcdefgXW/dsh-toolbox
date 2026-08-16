@@ -2040,6 +2040,12 @@ window.__ModuleLoader__.load({
               title: "清除已点击记录的标记样式",
               children: "清除标记（" + Object.keys(clicked).length + "）",
             }),
+            (kw.trim() || hits.length > 0) && jsx(P.Button, {
+              size: "sm", variant: "outline",
+              onClick: () => { setKw(""); setHits([]); setMsg(""); setPartialAsk(null); setClicked({}); setCacheExpiresAt(0); },
+              title: "清空输入框与搜索结果",
+              children: "🧹 清除搜索",
+            }),
           ] }),
           msg ? jsx("div", { style: { fontSize: 12, marginBottom: 6, opacity: 0.85 }, children: msg }) : null,
           cacheLeft != null ? jsx("div", { style: { fontSize: 12, marginBottom: 6, opacity: 0.7 }, children: cacheLeft > 0 ? ("⏱ 缓存倒计时：" + cacheLeft + "s" + (semantic ? "（同词搜索免 API 调用）" : "（同词搜索免解压）")) : "⏱ 缓存已过期（下次同词搜索将重新计算）" }) : null,
