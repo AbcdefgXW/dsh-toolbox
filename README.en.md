@@ -11,7 +11,7 @@
 ## ✨ Features
 
 - **💬 Session Management**: delete (to trash), duplicate (official fork with `-copyN` naming), move (between workspaces), reset workspace root, tag grouping (click-to-select editor for existing tags to avoid typos; tag management: delete/rename, renaming merges duplicates), view session content (read-only), conversation management (truncate/edit, disabled by default), empty sessions auto-labeled as `(empty session) workspace-name`
-- **⏰ Scheduled Heartbeat**: wake the AI on a schedule to run checkups/reports (OpenClaw-style heartbeat) — two schedulers: **interval heartbeat** (every N minutes) and **fixed-time schedule** (daily at HH:mm / weekly on a weekday / monthly on a date), each with its own prompt and target; targets can be the **main workspace root (internal checkup), any session, or 📱 WeChat / QQ / Feishu IM channels** (wakes the channel bot and pushes the AI reply back to your phone). The scheduler runs in the **dsh backend process** — **no need to keep the web page open**; the dsh service running is enough. Channel push is an **optional integration**: it depends on the `dsh-channels-push` service provided by our in-house channel bridge plugin dsh-im-bridge (see "IM Channel Push (optional)" below); without it the heartbeat automatically falls back to the main workspace root
+- **⏰ Scheduled Heartbeat**: wake the AI on a schedule to run checkups/reports (OpenClaw-style heartbeat) — two schedulers: **interval heartbeat** (every N minutes) and **fixed-time schedule** (daily at HH:mm / weekly on a weekday / monthly on a date), each with its own prompt and target; targets can be the **main workspace root (internal checkup), any session, or 📱 WeChat / QQ / Feishu IM channels** (wakes the channel bot and pushes the AI reply back to your phone). The scheduler runs in the **dsh backend process** — **no need to keep the web page open**; the dsh service running is enough. Channel push is an **optional integration**: it depends on the `dsh-channels-push` service provided by our in-house channel bridge plugin dsh-msg-hub (see "IM Channel Push (optional)" below); without it the heartbeat automatically falls back to the main workspace root
 - **📃 Long-message Collapse**: messages longer than the threshold (15 lines by default, configurable) auto-collapse with an "expand all" button; on by default for user messages, off for AI replies (pure render-layer enhancement, no data modification)
 - **🗑️ Trash Bin**: deleted sessions/subdirectories go to trash (30-day retention by default, configurable); restore / purge / preview deleted session content
 - **📁 Subdirectory Management**: create / rename / delete / duplicate directories under a workspace, batch-assign sessions
@@ -95,7 +95,7 @@ After restarting `dsh web`, hard-refresh the browser (Ctrl+Shift+R):
 3. **⏰ Scheduled Heartbeat** (optional, OpenClaw-style): Settings → Toolbox → Scheduled Heartbeat
    - toggle + interval (minutes) + prompt (`{time}` replaced with current time) + countdown to next run
    - fixed-time schedule: daily / weekly weekday / monthly date, with its own prompt and target
-   - targets: main workspace root (internal checkup) / any session / 📱 WeChat·QQ·Feishu (needs dsh-im-bridge; results pushed to your phone)
+   - targets: main workspace root (internal checkup) / any session / 📱 WeChat·QQ·Feishu (needs dsh-msg-hub; results pushed to your phone)
    - the scheduler runs in the dsh backend process — no need to keep the web page open
 4. **📃 Long-message Collapse** (on by default): messages beyond the threshold auto-collapse with an "expand all" button (threshold configurable)
 
@@ -119,7 +119,7 @@ Defaults apply when unset; all other paths are derived from the plugin's own dir
 
 The "📱 WeChat / QQ / Feishu" targets of scheduled heartbeat are an **optional integration**: dsh-toolbox calls the `dsh-channels-push` cordis service to "wake the channel bot → push the AI reply back to the IM".
 
-- **dsh-im-bridge** is our in-house channel bridge plugin (WeChat ilinkai / QQ Open Platform / Feishu Open Platform); it is **not distributed with this repository** — install it separately ([dsh-im-bridge](https://github.com/AbcdefgXW/dsh-im-bridge))
+- **dsh-msg-hub** is our in-house channel bridge plugin (WeChat ilinkai / QQ Open Platform / Feishu Open Platform); it is **not distributed with this repository** — install it separately ([dsh-msg-hub](https://github.com/AbcdefgXW/dsh-msg-hub))
 - Without that service: channel targets are unavailable (a "channel push service unavailable" note is shown), and heartbeat to the main workspace root / any session is completely unaffected
 - A third-party channel plugin exposing the same service name can also be integrated (currently an implementation convention, not a public adapter spec)
 - **Conversation management (truncate/edit)**: modifies session files and requires a dsh restart to take full effect; disabled by default, enable it explicitly in settings
