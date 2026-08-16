@@ -141,7 +141,15 @@ class ToolsApi extends Service {
     const all = await listAllSessions();
     return all.map((s) => {
       const stats = readSessionStatsLite(s.path, s.sessionId);
-      return { sessionId: s.sessionId, cwd: s.cwd, title: stats?.title ?? null, size: stats?.size ?? 0, turns: stats?.turns ?? 0 };
+      return {
+        sessionId: s.sessionId,
+        cwd: s.cwd,
+        title: stats?.title ?? null,
+        size: stats?.size ?? 0,
+        turns: stats?.turns ?? 0,
+        parentSession: s.header?.parentSession ?? null, // 子代理会话标记（前端分 tab 管理）
+        delegationDepth: s.header?.delegationDepth ?? 0,
+      };
     });
   }
 

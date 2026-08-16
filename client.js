@@ -757,7 +757,7 @@ window.__ModuleLoader__.load({
 
       // 当前 tab 被开关隐藏时自动切回可用 tab
       React.useEffect(() => {
-        const avail = ["sessions", "trash", "subdirs", "search", "presets", "config", "archived"].filter((t) => {
+        const avail = ["sessions", "trash", "subagents", "subdirs", "presets", "config", "archived", "search"].filter((t) => {
           if (t === "sessions") return cfg.sessionManage !== false;
           if (t === "subdirs") return cfg.workspaceManage !== false;
           if (t === "search") return cfg.customSearch !== false;
@@ -822,9 +822,12 @@ window.__ModuleLoader__.load({
       ];
 
       // 一级分组：工作区根（dsh 本体层）；二级：标签（插件层）
+      // 主会话列表（子代理会话在「子代理」tab 单独管理）
+      const mainSessions = sessions.filter((s) => !s.parentSession);
+      const subAgentSessions = sessions.filter((s) => s.parentSession);
       const registeredPaths = new Set((wsList || []).map((w) => w.path));
       const byRoot = {};
-      for (const s of sessions) {
+      for (const s of mainSessions) {
         const root = registeredPaths.has(s.cwd) ? s.cwd : "(未分组)";
         (byRoot[root] ||= []).push(s);
       }
@@ -1091,15 +1094,16 @@ window.__ModuleLoader__.load({
           jsx("div", { style: { display: "flex", alignItems: "center", flexWrap: "wrap", marginBottom: 8 }, children: [
             cfg.sessionManage !== false && tabBtn("sessions", "会话", "💬"),
             tabBtn("trash", "回收站", "🗑️"),
+            tabBtn("subagents", "子代理", "🧬"),
             cfg.workspaceManage !== false && tabBtn("subdirs", "子目录", "📁"),
-            cfg.customSearch !== false && tabBtn("search", "搜索", "🔍"),
             cfg.presetEdit !== false && tabBtn("presets", "预设", "⚙️"),
             cfg.configEditor !== false && tabBtn("config", "配置", "📄"),
             tabBtn("archived", "归档", "🗄"),
+            cfg.customSearch !== false && tabBtn("search", "搜索（极占内存）", "🔍"),
           ] }),
           msg ? jsx("div", { style: { fontSize: 12, marginBottom: 6, opacity: 0.85 }, children: msg }) : null,
           tab === "sessions" && jsx("div", {
-            children: sessions.length === 0
+            children: mainSessions.length === 0
               ? jsx("div", { style: { opacity: 0.5, padding: 8, fontSize: 13 }, children: "没有会话" })
               : rootGroups.map((root) => {
                   // 组内二级：按标签分小节
@@ -1164,6 +1168,37 @@ window.__ModuleLoader__.load({
                 ? jsx("div", { style: { opacity: 0.5, padding: 8, fontSize: 13 }, children: "回收站是空的" })
                 : trash.map(trashRow),
             ],
+          }),
+          tab === "subagents" && jsx("div", {
+            children: subAgentSessions.length === 0
+              ? jsx("div", { style: { opacity: 0.5, padding: 8, fontSize: 13 }, children: "没有子代理会话（子代理会话由 dsh 在任务委托时自动创建）" })
+              : (() => {
+                  // 按父会话分组
+                  const parentTitles = {};
+                  for (const s of mainSessions) parentTitles[s.sessionId] = s.title || s.sessionId.slice(0, 12);
+                  const byParent = {};
+                  for (const s of subAgentSessions) (byParent[s.parentSession] ||= []).push(s);
+                  return Object.keys(byParent).map((pid) => jsx("div", {
+                    key: pid,
+                    style: { marginBottom: 8 },
+                    children: [
+                      jsx("div", { style: { fontSize: 12, fontWeight: 600, opacity: 0.85, padding: "6px 2px 2px" }, children: "🧬 父会话：" + (parentTitles[pid] || pid.slice(0, 12)) + "（" + byParent[pid].length + "）" }),
+                      byParent[pid].map((s) => jsx("div", {
+                        key: s.sessionId,
+                        style: { display: "flex", alignItems: "center", gap: 6, padding: "6px 4px", borderBottom: "1px solid rgba(128,128,128,0.12)" },
+                        children: [
+                          jsx("div", { style: { flex: 1, minWidth: 0 }, children: [
+                            jsx("div", { style: { fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: s.title || "（无标题）" }),
+                            jsx("div", { style: { fontSize: 11, opacity: 0.55 }, children: (s.cwd || "") + " · " + (s.turns || 0) + " 轮 · " + (s.size ? (s.size / 1024).toFixed(0) + "KB" : "") }),
+                          ] }),
+                          jsx(P.Button, { size: "sm", variant: "outline", onClick: () => { props.onClose && props.onClose(); props.openSession(s.sessionId); }, children: "打开" }),
+                          jsx(P.Button, { size: "sm", variant: "outline", onClick: () => copyId(s.sessionId), children: "复制 ID" }),
+                          jsx(P.Button, { size: "sm", variant: "outline", onClick: () => confirm("删除子代理会话「" + (s.title || s.sessionId.slice(0, 12)) + "」？文件将移入回收站（可恢复）") && run("删除", () => tools["sessions.delete"](s.sessionId), refreshSessions), children: "删除" }),
+                        ],
+                      })),
+                    ],
+                  }));
+                })(),
           }),
           (tab === "subdirs") && jsx(SubdirsTab, { tools, unwrap, run, confirm, subdirs, refreshSubdirs, sessions, currentId, refreshSessions, wsList }),
           (tab === "search") && jsx(SearchTab, { tools, unwrap, list, openSession: props.openSession, onClose: props.onClose }),
