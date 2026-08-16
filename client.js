@@ -514,6 +514,8 @@ window.__ModuleLoader__.load({
               }),
             ],
           }),
+          // ── 分区三：搜索（通用搜索设置，关键词/语义共用） ──
+          sectionTitle("🔍 搜索"),
           jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
             children: [
@@ -527,9 +529,9 @@ window.__ModuleLoader__.load({
               }),
             ],
           }),
+          jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "缓存期内重复搜索同词：关键词免解压、语义免 API 调用；搜索 Tab 会显示倒计时。" }),
 
-
-          // ── 分区三：语义搜索（地址/Key/模型 + 测试连接 + 获取模型；无开关，勾选即用） ──
+          // ── 分区四：语义搜索（地址/Key/模型 + 测试连接 + 获取模型；无开关，勾选即用） ──
           sectionTitle("🧠 语义搜索"),
           jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 8 }, children: "搜索 Tab 勾选「🧠 语义」即按语义匹配；无 Key / API 失败自动降级为关键词搜索。三项配置改动即自动保存（清空 = 恢复默认），Key 仅存本地。" }),
           jsx("div", {
@@ -594,7 +596,7 @@ window.__ModuleLoader__.load({
           }) : null,
           embedModelsErr ? jsx("div", { style: { fontSize: 12, color: "#e5534b", padding: "0 0 8px" }, children: "✗ " + embedModelsErr }) : null,
 
-          // ── 分区四：回收站 ──
+          // ── 分区五：回收站 ──
           sectionTitle("🗑️ 回收站"),
           jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
