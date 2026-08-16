@@ -56,7 +56,7 @@ import { getConfig, setConfigField } from "./lib/config.js";
 import { listPresets, readPresetFile, savePresetFile } from "./lib/presets.js";
 import { decompressFirstFrame } from "./lib/zstd.js";
 import { listTags, setSessionTags, removeTag, renameTag } from "./lib/tags.js";
-import { listMessages, truncateSessionAt, editMessageAt } from "./lib/messages.js";
+import { listMessagesTail, truncateSessionAt, editMessageAt } from "./lib/messages.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -381,7 +381,7 @@ class ToolsApi extends Service {
     const cfg = getConfig();
     try {
       const r = await buildEmbedIndex(cfg, listAllSessions, async (sessionPath, limit) => {
-        const out = await listMessages(sessionPath, limit);
+        const out = await listMessagesTail(sessionPath, limit); // 倒序逐帧，避免超大文件整体解压（内存飙升根源）
         return (out && out.messages) || [];
       });
       return { ok: true, ...r };
@@ -478,7 +478,7 @@ class ToolsApi extends Service {
     const all = await listAllSessions();
     const s = all.find((x) => x.sessionId === sessionId);
     if (!s) return { ok: false, error: "会话不存在" };
-    return listMessages(s.path, limit || 20);
+    return listMessagesTail(s.path, limit || 20);
   }
 
   async "messages.truncate"(sessionId, seq) {
@@ -643,7 +643,7 @@ class ToolsApi extends Service {
   async "trash.view"(entryDir, limit = 30) {
     const dataPath = path.join(entryDir, "data");
     if (!fs.existsSync(dataPath)) return { ok: false, error: "回收站条目数据缺失" };
-    return listMessages(dataPath, limit);
+    return listMessagesTail(dataPath, limit);
   }
 
   async "trash.restore"(entryDir) {
