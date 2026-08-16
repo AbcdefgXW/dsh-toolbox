@@ -851,6 +851,22 @@ window.__ModuleLoader__.load({
             jsx("div", { style: { fontSize: 15, fontWeight: 600 }, children: "🧰 工具箱" }),
             jsx("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
               jsx(P.Button, {
+                size: "sm", variant: "outline",
+                onClick: () => {
+                  // 切换 dsh 官方主题（light/dark），工具箱 CSS 变量自动跟随
+                  try {
+                    const themeSvc = ctx.get("theme");
+                    const cur = themeSvc && themeSvc.preference;
+                    themeSvc && themeSvc.setTheme(cur === "dark" ? "light" : "dark");
+                    setMsg("主题已切换（" + (cur === "dark" ? "白天 ☀️" : "夜间 🌙") + "）");
+                  } catch (e) {
+                    setMsg("主题切换失败：" + (e && e.message ? e.message : String(e)));
+                  }
+                },
+                title: "切换白天/夜间主题（跟随 dsh 官方主题）",
+                children: "🌓 主题",
+              }),
+              jsx(P.Button, {
                 size: "sm", variant: "outline", disabled: busy,
                 onClick: () => {
                   setBusy(true); setMsg("");
