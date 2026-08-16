@@ -537,7 +537,7 @@ window.__ModuleLoader__.load({
           }),
           // ── 分区三：搜索（通用搜索设置，关键词/语义共用） ──
           sectionTitle("🔍 搜索"),
-          jsx("div", { style: { fontSize: 12, opacity: 0.75, marginBottom: 8, color: "#e5a54b" }, children: "⚠️ 不建议搜索会话，特别是本地环境：会话多时需解压大量会话，极占内存，可能需要重启 DSH 服务才能恢复。" }),
+          jsx("div", { style: { fontSize: 12, opacity: 0.75, marginBottom: 8, color: "#e5a54b" }, children: "⚠️ 搜索默认全部关闭（省内存）。开启后比较占内存：自研/语义搜索需解压会话；DSH 的内存释放机制是 Node 垃圾回收，大对象释放后堆水位不会立即下降，必须重启 DSH 服务才会彻底释放。官方搜索（SQLite 索引）不读会话文件，占用最低，建议优先使用。" }),
           jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
             children: [
@@ -555,7 +555,7 @@ window.__ModuleLoader__.load({
 
           // ── 分区四：语义搜索（地址/Key/模型 + 测试连接 + 获取模型；无开关，勾选即用） ──
           sectionTitle("🧠 语义搜索"),
-          row({ key: "embedEnabled", label: "语义搜索开关", desc: "默认关（省内存）。开启后搜索页才可切换到「🧠 语义」模式；关闭时只能关键词搜索", default: false }),
+          row({ key: "embedEnabled", label: "语义搜索开关", desc: "默认关。开启后搜索页才可切换到「🧠 语义」模式；⚠️ 语义搜索需解压命中会话，比较占内存，使用后必须重启 DSH 服务才会释放", default: false }),
           jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 8 }, children: "搜索 Tab 勾选「🧠 语义」即按语义匹配；无 Key / API 失败 / 匹配度过低自动降级为关键词搜索。配置改动即自动保存，Key 仅存本地。" }),
           jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
@@ -1951,7 +1951,7 @@ window.__ModuleLoader__.load({
       const abortRef = React.useRef(null);
       const skipPersist = React.useRef(false); // 「清除搜索」只清当前显示，跳过持久层同步（重开面板恢复）
       // 已点击的记录标记（本轮搜索内生效；新搜索/手动清除时重置）
-      const [clicked, setClicked] = React.useState({});
+      const [clicked, setClicked] = React.useState(searchPersist.clicked || {}); // 已点击标记（持久化：关面板重开后保留）
       const [semantic, setSemantic] = React.useState(false); // 语义搜索模式
       // 关键词时间范围过滤（搜索页内嵌：修改即保存，重新打开工具箱自动恢复）
       const [dateFromStr, setDateFromStr] = React.useState("");
@@ -2053,7 +2053,8 @@ window.__ModuleLoader__.load({
         searchPersist.hits = hits;
         searchPersist.searching = searching;
         searchPersist.msg = msg;
-      }, [kw, hits, searching, msg]);
+        searchPersist.clicked = clicked;
+      }, [kw, hits, searching, msg, clicked]);
 
       // 断点续扫结果合并（按 会话+seq/行 去重）
       const mergeHits = (prev, next) => {
