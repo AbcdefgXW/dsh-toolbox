@@ -42,6 +42,7 @@ import {
   setOfficialSearch,
   getOfficialSearchState,
   clearSearchCache,
+  readMessagesBySeqs,
 } from "./lib/search.js";
 import { buildEmbedIndex, embedQuery, listEmbedModels, testEmbedConnection } from "./lib/embed.js";
 import {
@@ -346,7 +347,16 @@ class ToolsApi extends Service {
     const cfg = getConfig();
     if (!String(cfg.embedApiKey || "").trim()) return { ok: false, fallback: true, error: "未配置 embedding API Key（设置 → 工具箱 → 🧠 语义搜索）" };
     try {
-      return await embedQuery(cfg, String(keyword || "").trim(), 20, signal);
+      // 命中后按需解压目标会话补内容预览（会话路径映射只建一次；按会话批量取）
+      let sessionMap = null;
+      const resolveSnippet = async (sessionId, seqs) => {
+        if (!sessionMap) {
+          sessionMap = new Map((await listAllSessions()).map((s) => [s.sessionId, s.path]));
+        }
+        const p = sessionMap.get(sessionId);
+        return p ? readMessagesBySeqs(p, seqs) : {};
+      };
+      return await embedQuery(cfg, String(keyword || "").trim(), 20, signal, resolveSnippet);
     } catch (err) {
       return { ok: false, fallback: true, error: String(err) };
     }

@@ -1995,12 +1995,12 @@ window.__ModuleLoader__.load({
           onClick: (e) => {
             e.preventDefault(); e.stopPropagation();
             setClicked({ ...clicked, [hkey]: true });
-            if (openSession) openSession(h.sessionId, kw, h.seq, !!h.semantic);
+            if (openSession) openSession(h.sessionId, kw, h.seq, !!h.semantic, h.snippet);
           },
           title: "点击打开会话并定位",
           children: [
             jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 2 }, children: title + (h.semantic ? " · 🎯 相关度 " + Math.round((h.score || 0) * 100) + "%" : " · 第 " + h.line + " 行") }),
-            jsx("div", { style: { fontSize: 12, lineHeight: 1.5 }, children: h.semantic ? "（语义命中，点击打开会话定位）" : highlight(h.snippet) }),
+            jsx("div", { style: { fontSize: 12, lineHeight: 1.5 }, children: h.semantic ? (h.snippet ? (String(h.snippet).length > 120 ? String(h.snippet).slice(0, 120) + "…" : h.snippet) : "（无内容预览，点击打开定位）") : highlight(h.snippet) }),
           ],
         });
       };
@@ -2163,7 +2163,7 @@ window.__ModuleLoader__.load({
           }
         } catch (e) { console.warn("dsh-toolbox: 折叠设置初始化失败", e); }
         // 打开会话（官方 sessions 服务）；带 keyword/seq 时定位到关键词所在消息
-        const openSession = (sessionId, keyword, seq, semantic) => {
+        const openSession = (sessionId, keyword, seq, semantic, snippet) => {
           try {
             const svc = ctx.get("sessions");
             if (svc && typeof svc.open === "function") svc.open(sessionId);
@@ -2204,28 +2204,21 @@ window.__ModuleLoader__.load({
               const el = document.querySelector('[data-seq="' + seq + '"]');
               if (el) { flash(el); return; }
             }
-            // 2) 语义命中：搜索词是语义描述，文本不一定匹配——用命中消息的真实内容定位
+            // 2) 语义命中：snippet 已由后端按需解压附带（搜索词是语义描述，文本不一定匹配）
             if (seq != null && semantic) {
-              tools["messages.list"](sessionId, 500)
-                .then((resp) => {
-                  const r = unwrap(resp);
-                  const msgs = (r && r.messages) || [];
-                  const m = msgs.find((x) => x.seq === seq);
-                  const needle = m && m.content ? String(m.content).slice(0, 60) : "";
-                  if (!needle) return;
-                  // 逐轮滚动探测：底部（最新）→ 顶部（历史）→ 中部，每轮等虚拟滚动渲染
-                  const probe = (round) => {
-                    const ms = findTextEls(needle);
-                    if (ms.length > 0) { flash(ms[0]); return; }
-                    if (round >= 3) return;
-                    const box = scrollContainer();
-                    if (!box) return;
-                    box.scrollTop = round === 0 ? box.scrollHeight : (round === 1 ? 0 : box.scrollHeight / 2);
-                    setTimeout(() => probe(round + 1), 900);
-                  };
-                  probe(0);
-                })
-                .catch(() => {});
+              const needle = snippet ? String(snippet).slice(0, 60) : "";
+              if (!needle) return;
+              // 逐轮滚动探测：底部（最新）→ 顶部（历史）→ 中部，每轮等虚拟滚动渲染
+              const probe = (round) => {
+                const ms = findTextEls(needle);
+                if (ms.length > 0) { flash(ms[0]); return; }
+                if (round >= 3) return;
+                const box = scrollContainer();
+                if (!box) return;
+                box.scrollTop = round === 0 ? box.scrollHeight : (round === 1 ? 0 : box.scrollHeight / 2);
+                setTimeout(() => probe(round + 1), 700);
+              };
+              probe(0);
               return;
             }
             // 3) 关键词路径：滚动到底部触发渲染，再按搜索词文本查找（取最后一个匹配，靠近最新）
