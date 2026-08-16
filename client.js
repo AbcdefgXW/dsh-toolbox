@@ -830,7 +830,7 @@ window.__ModuleLoader__.load({
         background: "rgba(0,0,0,0.55)", backdropFilter: "blur(3px)", padding: 12,
       };
       const cardStyle = {
-        background: "var(--dsw-specific-surface-float, #202024)",
+        background: "var(--dsw-alias-bg-layer-1, #202024)",
         color: "var(--dsw-alias-label-primary, #eee)",
         borderRadius: 12, padding: "14px 16px 16px", boxSizing: "border-box",
         width: "min(760px, 94vw)", maxWidth: "94vw", maxHeight: "80vh", overflowY: "auto",
@@ -853,18 +853,27 @@ window.__ModuleLoader__.load({
               jsx(P.Button, {
                 size: "sm", variant: "outline",
                 onClick: () => {
-                  // 切换 dsh 官方主题（light/dark），工具箱 CSS 变量自动跟随
+                  // 三态主题轮换：夜间 → 白天 → 跟随系统
                   try {
                     const themeSvc = ctx.get("theme");
-                    const cur = themeSvc && themeSvc.preference;
-                    themeSvc && themeSvc.setTheme(cur === "dark" ? "light" : "dark");
-                    setMsg("主题已切换（" + (cur === "dark" ? "白天 ☀️" : "夜间 🌙") + "）");
+                    if (!themeSvc || typeof themeSvc.setTheme !== "function") { setMsg("主题服务不可用"); return; }
+                    const cur = themeSvc.preference;
+                    const next = cur === "dark" ? "light" : cur === "light" ? "system" : "dark";
+                    themeSvc.setTheme(next);
+                    setMsg("主题：" + (next === "dark" ? "夜间 🌙" : next === "light" ? "白天 ☀️" : "跟随系统 🖥️"));
                   } catch (e) {
                     setMsg("主题切换失败：" + (e && e.message ? e.message : String(e)));
                   }
                 },
-                title: "切换白天/夜间主题（跟随 dsh 官方主题）",
-                children: "🌓 主题",
+                title: "切换主题：夜间 / 白天 / 跟随系统（点击轮换）",
+                children: (() => {
+                  try {
+                    const cur = ctx.get("theme") && ctx.get("theme").preference;
+                    if (cur === "light") return "☀️ 白天";
+                    if (cur === "system") return "🖥️ 跟随";
+                  } catch {}
+                  return "🌙 夜间";
+                })(),
               }),
               jsx(P.Button, {
                 size: "sm", variant: "outline", disabled: busy,
@@ -1104,8 +1113,8 @@ window.__ModuleLoader__.load({
         background: "rgba(0,0,0,0.72)", padding: 12,
       } : null;
       const cardStyle = full
-        ? { width: "min(1100px, 96vw)", height: "min(92vh, 1000px)", display: "flex", flexDirection: "column", background: "var(--dsw-specific-surface-float, #1c1c20)", color: "var(--dsw-alias-label-primary, #eee)", borderRadius: 12, padding: 14, boxSizing: "border-box", boxShadow: "0 12px 40px rgba(0,0,0,0.5)" }
-        : { width: "100%", background: "var(--dsw-specific-surface-float, #1c1c20)", color: "var(--dsw-alias-label-primary, #eee)", borderRadius: 12, padding: 14, boxSizing: "border-box", boxShadow: "0 12px 40px rgba(0,0,0,0.5)" };
+        ? { width: "min(1100px, 96vw)", height: "min(92vh, 1000px)", display: "flex", flexDirection: "column", background: "var(--dsw-alias-bg-layer-1, #1c1c20)", color: "var(--dsw-alias-label-primary, #eee)", borderRadius: 12, padding: 14, boxSizing: "border-box", boxShadow: "0 12px 40px rgba(0,0,0,0.5)" }
+        : { width: "100%", background: "var(--dsw-alias-bg-layer-1, #1c1c20)", color: "var(--dsw-alias-label-primary, #eee)", borderRadius: 12, padding: 14, boxSizing: "border-box", boxShadow: "0 12px 40px rgba(0,0,0,0.5)" };
 
       return jsx("div", { style: overlayStyle, onClick: full ? (e) => { if (window.__dsdDrag) { e.stopPropagation(); return; } if (e.target === e.currentTarget) setFull(false); } : undefined, children: jsx("div", {
         style: cardStyle,
@@ -1231,7 +1240,7 @@ window.__ModuleLoader__.load({
         style: { position: "fixed", inset: 0, zIndex: 2100, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.55)", padding: 12 },
         onClick: (e) => { if (window.__dsdDrag) { e.stopPropagation(); return; } onClose(); },
         children: jsx("div", {
-          style: { width: "min(680px, 94vw)", maxHeight: "78vh", display: "flex", flexDirection: "column", background: "var(--dsw-specific-surface-float, #1c1c20)", color: "var(--dsw-alias-label-primary, #eee)", borderRadius: 12, padding: 14, boxSizing: "border-box", boxShadow: "0 12px 40px rgba(0,0,0,0.5)" },
+          style: { width: "min(680px, 94vw)", maxHeight: "78vh", display: "flex", flexDirection: "column", background: "var(--dsw-alias-bg-layer-1, #1c1c20)", color: "var(--dsw-alias-label-primary, #eee)", borderRadius: 12, padding: 14, boxSizing: "border-box", boxShadow: "0 12px 40px rgba(0,0,0,0.5)" },
           onClick: (e) => e.stopPropagation(),
           children: [
             jsx("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }, children: [
@@ -1431,7 +1440,7 @@ window.__ModuleLoader__.load({
         style: { position: "fixed", inset: 0, zIndex: 2100, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.55)", padding: 12 },
         onClick: onClose,
         children: jsx("div", {
-          style: { width: "min(520px, 94vw)", maxHeight: "78vh", display: "flex", flexDirection: "column", background: "var(--dsw-specific-surface-float, #1c1c20)", color: "var(--dsw-alias-label-primary, #eee)", borderRadius: 12, padding: 14, boxSizing: "border-box", boxShadow: "0 12px 40px rgba(0,0,0,0.5)" },
+          style: { width: "min(520px, 94vw)", maxHeight: "78vh", display: "flex", flexDirection: "column", background: "var(--dsw-alias-bg-layer-1, #1c1c20)", color: "var(--dsw-alias-label-primary, #eee)", borderRadius: 12, padding: 14, boxSizing: "border-box", boxShadow: "0 12px 40px rgba(0,0,0,0.5)" },
           onClick: (e) => e.stopPropagation(),
           children: [
             jsx("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }, children: [
@@ -1824,7 +1833,7 @@ window.__ModuleLoader__.load({
           st.textContent = [
             ".dsd-fold { position: relative; }",
             ".dsd-fold.dsd-folded { max-height: var(--dsd-fold-h, 360px); overflow: hidden; }",
-            ".dsd-fold.dsd-folded::after { content: \"\"; position: absolute; left: 0; right: 0; bottom: 0; height: 44px; background: linear-gradient(transparent, var(--dsw-specific-surface-float, #1c1c20)); pointer-events: none; }",
+            ".dsd-fold.dsd-folded::after { content: \"\"; position: absolute; left: 0; right: 0; bottom: 0; height: 44px; background: linear-gradient(transparent, var(--dsw-alias-bg-layer-1, #1c1c20)); pointer-events: none; }",
             ".dsd-fold.dsd-open { max-height: none; overflow: visible; }",
             ".dsd-fold.dsd-open::after { display: none; }",
             ".dsd-fold-btn { position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); z-index: 5; font-size: 12px; cursor: pointer; user-select: none; border: none; border-radius: 999px; padding: 2px 12px; color: var(--dsw-alias-label-primary, #eee); background: var(--dsw-specific-button-secondary, rgba(128,128,128,0.4)); white-space: nowrap; }",
