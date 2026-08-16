@@ -337,9 +337,9 @@ class ToolsApi extends Service {
   }
 
   // ── 搜索 ──
-  async "search.query"(keyword, signal, forceFull) {
-    const r = await searchSessions(keyword, signal, 100, !!forceFull);
-    return { ok: true, hits: r.hits, partial: r.partial, cache: r.cache };
+  async "search.query"(keyword, signal, fromIndex) {
+    const r = await searchSessions(keyword, signal, 100, Number(fromIndex) > 0 ? Number(fromIndex) : 0);
+    return { ok: true, hits: r.hits, partial: r.partial, scanned: r.scanned, total: r.total, memoryMB: r.memoryMB, cache: r.cache };
   }
 
   /** 语义搜索：embedding 查询；失败/无索引 → {ok:false, fallback:true}（前端降级关键词搜索）。 */
@@ -826,7 +826,7 @@ export function apply(ctx) {
       invocation("workspace.moveSessions", ["name", "targetCwd"]),
       invocation("workspace.delete", ["name", "sessionsAction"]),
       invocation("workspace.copy", ["name"]),
-      invocation("search.query", ["keyword", "forceFull"], true),
+      invocation("search.query", ["keyword", "fromIndex"], true),
       invocation("search.embed", ["keyword"], true),
       invocation("search.embedBuild"),
       invocation("search.embedStatus"),

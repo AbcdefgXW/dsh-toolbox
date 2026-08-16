@@ -38,7 +38,7 @@ window.__ModuleLoader__.load({
       ["workspace.moveSessions", ["name", "targetCwd"]],
       ["workspace.delete", ["name", "sessionsAction"]],
       ["workspace.copy", ["name"]],
-      ["search.query", ["keyword", "forceFull"]],
+      ["search.query", ["keyword", "fromIndex"]],
       ["search.embed", ["keyword"]],
       ["search.embedModels", []],
       ["search.embedTest", []],
@@ -1874,8 +1874,13 @@ window.__ModuleLoader__.load({
         searchPersist.msg = msg;
       }, [kw, hits, searching, msg]);
 
-      const doSearch = (full) => {
-        const useFull = full === true; // 「继续搜索全部」= 跳过缓存 + 不做时间截断
+      // 断点续扫结果合并（按 会话+seq/行 去重）
+      const mergeHits = (prev, next) => {
+        const seen = new Set((prev || []).map((h) => h.sessionId + ":" + (h.seq ?? h.line)));
+        return [...(prev || []), ...(next || []).filter((h) => !seen.has(h.sessionId + ":" + (h.seq ?? h.line)))];
+      };
+      const doSearch = (fromIndex) => {
+        const resume = Number(fromIndex) > 0; // 「继续搜索全部」= 从断点接着扫（每段仍 30 秒）
         const keyword = kw.trim();
         if (!keyword || searching) return;
         setClicked({}); // 新搜索清除点击标记
@@ -1893,14 +1898,14 @@ window.__ModuleLoader__.load({
                 if (r && r.ok === false && r.fallback) {
                   // 降级：提示后走关键词搜索
                   setMsg("🧠 语义搜索不可用（" + ((r && r.error) || "未知") + "）→ 已降级为关键词搜索");
-                  tools["search.query"](keyword, useFull, ctrl.signal)
+                  tools["search.query"](keyword, resume ? fromIndex : 0, ctrl.signal)
                     .then((resp2) => {
                       const r2 = unwrap(resp2);
                       applyCache(r2);
                       const arr = r2 && r2.hits ? r2.hits : [];
-                      setHits(arr);
-                      if (r2 && r2.partial) setPartialAsk({ count: arr.length, semantic: false });
-                      else if (arr.length === 0) setMsg("无命中");
+                      setHits((prev) => mergeHits(prev, arr));
+                      if (r2 && r2.partial) setPartialAsk({ count: mergeHits(hits, arr).length, scanned: r2.scanned || 0, total: r2.total || 0, memoryMB: r2.memoryMB || 0 });
+                      else if (arr.length === 0 && !resume) setMsg("无命中");
                     })
                     .catch(() => {});
                   return;
@@ -1929,13 +1934,14 @@ window.__ModuleLoader__.load({
                 const b = unwrap(resp2);
                 if (b && b.ok === false && b.fallback) {
                   setMsg("🧠 语义搜索不可用（" + ((b && b.error) || "索引构建失败") + "）→ 已降级为关键词搜索");
-                  tools["search.query"](keyword, useFull, ctrl.signal)
+                  tools["search.query"](keyword, resume ? fromIndex : 0, ctrl.signal)
                     .then((resp3) => {
                       const r3 = unwrap(resp3);
                       applyCache(r3);
-                      setHits((r3 && r3.hits) || []);
-                      if (r3 && r3.partial) setPartialAsk({ count: ((r3.hits || []).length), semantic: false });
-                      else if (!r3 || !r3.hits || r3.hits.length === 0) setMsg("无命中");
+                      const arr3 = (r3 && r3.hits) || [];
+                      setHits((prev) => mergeHits(prev, arr3));
+                      if (r3 && r3.partial) setPartialAsk({ count: mergeHits(hits, arr3).length, scanned: r3.scanned || 0, total: r3.total || 0, memoryMB: r3.memoryMB || 0 });
+                      else if (arr3.length === 0 && !resume) setMsg("无命中");
                     })
                     .catch(() => {});
                   setSearching(false);
@@ -1949,14 +1955,14 @@ window.__ModuleLoader__.load({
             .catch((e) => { setMsg("索引状态失败：" + (e.message || String(e))); setSearching(false); abortRef.current = null; });
           return;
         }
-        tools["search.query"](keyword, useFull, ctrl.signal)
+        tools["search.query"](keyword, resume ? fromIndex : 0, ctrl.signal)
           .then((resp) => {
             const r = unwrap(resp);
             applyCache(r);
             const arr = r && r.hits ? r.hits : [];
-            setHits(arr);
-            if (r && r.partial) setPartialAsk({ count: arr.length, semantic: false });
-            else if (arr.length === 0) setMsg("无命中");
+            setHits((prev) => mergeHits(prev, arr));
+            if (r && r.partial) setPartialAsk({ count: mergeHits(hits, arr).length, scanned: r.scanned || 0, total: r.total || 0, memoryMB: r.memoryMB || 0 });
+            else if (arr.length === 0 && !resume) setMsg("无命中");
           })
           .catch((e) => {
             if (e && e.name !== "AbortError") setMsg("搜索失败：" + (e.message || String(e)));
@@ -2038,8 +2044,8 @@ window.__ModuleLoader__.load({
           msg ? jsx("div", { style: { fontSize: 12, marginBottom: 6, opacity: 0.85 }, children: msg }) : null,
           cacheLeft != null ? jsx("div", { style: { fontSize: 12, marginBottom: 6, opacity: 0.7 }, children: cacheLeft > 0 ? ("⏱ 缓存倒计时：" + cacheLeft + "s" + (semantic ? "（同词搜索免 API 调用）" : "（同词搜索免解压）")) : "⏱ 缓存已过期（下次同词搜索将重新计算）" }) : null,
           partialAsk ? jsx("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }, children: [
-            jsx("span", { style: { fontSize: 12, opacity: 0.85 }, children: "⚠️ 搜索已超过 30 秒，目前仅找到 " + partialAsk.count + " 条。" }),
-            jsx(P.Button, { size: "sm", variant: "primary", onClick: () => { setPartialAsk(null); doSearch(true); }, children: "⏩ 继续搜索全部" }),
+            jsx("span", { style: { fontSize: 12, opacity: 0.85 }, children: "⚠️ 本段搜索已超过 30 秒，已扫 " + partialAsk.scanned + "/" + (partialAsk.total || "?") + " 个会话，目前共找到 " + partialAsk.count + " 条。" + (partialAsk.memoryMB > 1500 ? "（当前内存 " + partialAsk.memoryMB + "MB，持续搜索可能更慢）" : "") }),
+            jsx(P.Button, { size: "sm", variant: "primary", onClick: () => { setPartialAsk(null); doSearch(partialAsk.scanned); }, children: "⏩ 继续扫描（再 30 秒）" }),
             jsx(P.Button, { size: "sm", variant: "outline", onClick: () => setPartialAsk(null), children: "✕ 取消（保留当前结果）" }),
           ] }) : null,
           searching
