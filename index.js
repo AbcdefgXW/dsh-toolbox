@@ -813,9 +813,12 @@ export function apply(ctx) {
       heartbeatState.lastBeatAt = Date.now();
       heartbeatState.lastTarget = target || "(主工作区根)";
       if (target.startsWith("ch-")) {
-        // 渠道推送：调 dsh-channels 的 ChannelsPushApi（唤醒渠道 agent 执行，回复回传 IM）
-        const parsed = parseChannelTarget(target);
+        // 渠道推送：调 dsh-msg-hub 的 ChannelsPushApi（唤醒渠道 agent 执行，回复回传 IM）
+        // 渠道解析优先用服务的适配器注册表（支持第三方注册渠道），静态前缀兜底
         const pushSvc = ctx.get("dsh-channels-push");
+        let parsed = null;
+        try { parsed = pushSvc && typeof pushSvc.resolveChannel === "function" ? pushSvc.resolveChannel(target) : null; } catch {}
+        if (!parsed) parsed = parseChannelTarget(target);
         if (pushSvc && parsed) {
           const r = await pushSvc.task({ channel: parsed.channel, peerId: parsed.peerId, prompt: text });
           heartbeatState.lastResult = r && r.ok ? "已推送渠道 " + target : "渠道推送失败：" + ((r && r.error) || "未知");
