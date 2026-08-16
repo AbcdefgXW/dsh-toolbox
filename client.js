@@ -2055,7 +2055,8 @@ window.__ModuleLoader__.load({
         if (!keyword || searching) return;
         setClicked({}); // 新搜索清除点击标记
         setPartialAsk(null);
-        if (!resume) { setGroups({ visible: [], archived: [], trash: [] }); setMsg(""); } // 新搜索清空旧结果，避免结果未出时误点
+        setCacheExpiresAt(0); // 搜索开始清掉旧倒计时（结果出来后才重新显示）
+        if (!resume) { setGroups({ visible: [], archived: [], trash: [], subagent: [] }); setMsg(""); } // 新搜索清空旧结果，避免结果未出时误点
         const ctrl = new AbortController();
         abortRef.current = ctrl;
         setSearching(true);
@@ -2067,9 +2068,9 @@ window.__ModuleLoader__.load({
               .then((resp) => {
                 const r = unwrap(resp);
                 if (r && r.ok === false && r.fallback) {
-                  // 降级：提示后走关键词搜索
+                  // 降级：提示后走关键词搜索（返回 promise 让外层 finally 等搜索完成，期间保持"搜索中"）
                   setMsg("🧠 语义搜索不可用（" + ((r && r.error) || "未知") + "）→ 已降级为关键词搜索");
-                  tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), ctrl.signal)
+                  return tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), ctrl.signal)
                     .then((resp2) => {
                       const r2 = unwrap(resp2);
                       applyCache(r2);
@@ -2079,7 +2080,6 @@ window.__ModuleLoader__.load({
                       else if (arr.length === 0 && !resume) setMsg("无命中");
                     })
                     .catch(() => {});
-                  return;
                 }
                 if (r && r.ok && r.hits) {
                   applyCache(r);
@@ -2105,7 +2105,7 @@ window.__ModuleLoader__.load({
                 const b = unwrap(resp2);
                 if (b && b.ok === false && b.fallback) {
                   setMsg("🧠 语义搜索不可用（" + ((b && b.error) || "索引构建失败") + "）→ 已降级为关键词搜索");
-                  tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), ctrl.signal)
+                  return tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), ctrl.signal)
                     .then((resp3) => {
                       const r3 = unwrap(resp3);
                       applyCache(r3);
@@ -2115,9 +2115,6 @@ window.__ModuleLoader__.load({
                       else if (arr3.length === 0 && !resume) setMsg("无命中");
                     })
                     .catch(() => {});
-                  setSearching(false);
-                  abortRef.current = null;
-                  return;
                 }
                 setMsg("🧠 首次索引构建完成，开始语义搜索…");
                 doEmbed();
@@ -2262,7 +2259,7 @@ window.__ModuleLoader__.load({
             jsx(P.Button, { size: "sm", variant: "outline", onClick: () => { skipPersist.current = true; setKw(""); setGroups({ visible: [], archived: [], trash: [] }); setHits([]); setMsg(""); setPartialAsk(null); setClicked({}); }, children: "🧹 清除搜索（清空输入与结果）" }),
           ] }) : null,
           searching
-            ? jsx("div", { style: { opacity: 0.6, padding: 12, fontSize: 13 }, children: [jsx("span", { className: "dsd-spin" }), "搜索中…（正在逐会话检索，会话多时可能超过 30 秒，可点「取消」停止；超时会询问继续/取消）"] })
+            ? jsx("div", { style: { opacity: 0.6, padding: 12, fontSize: 13 }, children: [jsx("span", { className: "dsd-spin" }), "搜索中…（正在逐会话检索，会话多时较慢，可随时点「取消」停止）"] })
             : hits.map(row),
         ],
       });
