@@ -15,7 +15,7 @@
 - **📃 Long-message Collapse**: messages longer than the threshold (15 lines by default, configurable) auto-collapse with an "expand all" button; on by default for user messages, off for AI replies (pure render-layer enhancement, no data modification)
 - **🗑️ Trash Bin**: deleted sessions/subdirectories go to trash (30-day retention by default, configurable); restore / purge / preview deleted session content
 - **📁 Subdirectory Management**: create / rename / delete / duplicate directories under a workspace, batch-assign sessions
-- **🔍 Full-text Search**: search across all sessions (highlight + jump + cancellable; frame-by-frame streaming decompression for low memory; 60s cache per keyword)
+- **🔍 Search**: full-text search with **official SQLite index engine first** (no session-file reads, lowest memory), falling back to in-house frame-by-frame scan; results **grouped by scope** (visible / archived / trash / subagent sessions, switch instantly after one search); **time-range filter** (today/yesterday/this month/last month shortcuts); snippet preview + click-to-locate highlight; 120s per-keyword cache; **semantic search** (optional, online embedding: relevance threshold 0-100 default 80, result limit configurable, literal-match boost). ⚠️ Search is **off by default** (memory); self-built/semantic search decompresses sessions and requires a DSH service restart to fully release memory
 - **⚙️ Preset Editing**: edit Agent preset files online
 - **📄 Config Editing**: edit dsh config file online (YAML validation + atomic write)
 - **🗄 Archive Management**: view / restore / delete officially archived sessions
@@ -78,6 +78,50 @@ npm install --omit=dev
 Place the plugin directory on the dsh plugin load path (e.g. `$DSH_HOME/plugins/` or a compose mount), register it as above, then restart `dsh web`.
 
 > `@deepseek-ai/*` packages are shipped with the dsh runtime; their versions track the dsh release. `js-yaml` is a plugin-level dependency (used for config-editing validation).
+
+## Uninstall
+
+```bash
+# Option 1: dsh command
+dsh plugin --profile web remove dsh-toolbox-web
+
+# Option 2: manual
+# 1. Remove "dsh-toolbox-web" from dsh.profile.bundles in the profile package.json
+# 2. rm -rf $DSH_HOME/profiles/web/node_modules/dsh-toolbox-web
+# 3. rm -rf <plugin-dir>/state  (trash/settings/index data)
+# 4. Restart dsh web
+```
+
+## Crash Recovery (vi emergency manual)
+
+**① `duplicate loader entry id: xxx` (most common)** — the plugin is registered twice (bundles + a manual insert):
+
+```bash
+vi /home/dsh/profiles/web/cordis.patch.yml
+# Delete any manual block like:
+#   - insert:
+#       - id: dsh-toolbox-web
+#         name: 'dsh-toolbox-web'
+# Keep sandbox-policy / approval system config untouched
+```
+
+**② `cannot resolve profile bundle "xxx"` (missing dependency)**
+
+```bash
+vi /home/dsh/profiles/web/package.json   # check bundles vs dependencies
+ls -la /home/dsh/profiles/web/node_modules/ | grep dsh-
+ln -s /path/to/plugin /home/dsh/profiles/web/node_modules/plugin-name   # restore symlink
+```
+
+**Fastest rollback**: backups are kept before changes:
+
+```bash
+ls /home/dsh/profiles/web/cordis.patch.yml.bak-*   # patch backups
+ls /home/dsh/profiles/web/package.json.bak-*       # package.json backups
+cp <backup> /home/dsh/profiles/web/cordis.patch.yml
+```
+
+Restart dsh after editing; check logs with `docker logs deepseek-harness` if it still fails.
 
 ## Usage
 
