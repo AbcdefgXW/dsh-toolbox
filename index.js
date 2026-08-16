@@ -43,7 +43,7 @@ import {
   getOfficialSearchState,
   clearSearchCache,
 } from "./lib/search.js";
-import { buildEmbedIndex, embedQuery } from "./lib/embed.js";
+import { buildEmbedIndex, embedQuery, listEmbedModels, testEmbedConnection } from "./lib/embed.js";
 import {
   trashItem,
   listTrash,
@@ -342,10 +342,9 @@ class ToolsApi extends Service {
   }
 
   /** 语义搜索：embedding 查询；失败/无索引 → {ok:false, fallback:true}（前端降级关键词搜索）。 */
-  async "search.embed"(keyword) {
+  async "search.embed"(keyword, signal) {
     const cfg = getConfig();
-    if (!cfg.embedSearch) return { ok: false, fallback: true, error: "语义搜索未开启" };
-    if (!String(cfg.embedApiKey || "").trim()) return { ok: false, fallback: true, error: "未配置 embedding API Key（设置 → 工具箱 → 语义搜索）" };
+    if (!String(cfg.embedApiKey || "").trim()) return { ok: false, fallback: true, error: "未配置 embedding API Key（设置 → 工具箱 → 🧠 语义搜索）" };
     try {
       return await embedQuery(cfg, String(keyword || "").trim());
     } catch (err) {
@@ -356,12 +355,35 @@ class ToolsApi extends Service {
   /** 构建/增量更新语义索引（异步任务，前端调用后轮询状态）。 */
   async "search.embedBuild"() {
     const cfg = getConfig();
-    if (!cfg.embedSearch) return { ok: false, fallback: true, error: "语义搜索未开启" };
     try {
       const r = await buildEmbedIndex(cfg, listAllSessions, async (sessionPath, limit) => {
         const out = await listMessages(sessionPath, limit);
         return (out && out.messages) || [];
       });
+      return { ok: true, ...r };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  }
+
+  /** 列出 API 可用模型（供设置页「获取模型」）。 */
+  async "search.embedModels"() {
+    const cfg = getConfig();
+    if (!String(cfg.embedApiKey || "").trim()) return { ok: false, error: "未配置 embedding API Key" };
+    try {
+      const r = await listEmbedModels(cfg);
+      return { ok: true, models: r.ids, current: r.current };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  }
+
+  /** 测试连接（设置页「测试连接」按钮）。 */
+  async "search.embedTest"() {
+    const cfg = getConfig();
+    if (!String(cfg.embedApiKey || "").trim()) return { ok: false, error: "未配置 embedding API Key" };
+    try {
+      const r = await testEmbedConnection(cfg);
       return { ok: true, ...r };
     } catch (err) {
       return { ok: false, error: String(err) };
@@ -783,9 +805,11 @@ export function apply(ctx) {
       invocation("workspace.delete", ["name", "sessionsAction"]),
       invocation("workspace.copy", ["name"]),
       invocation("search.query", ["keyword"], true),
-      invocation("search.embed", ["keyword"]),
+      invocation("search.embed", ["keyword"], true),
       invocation("search.embedBuild"),
       invocation("search.embedStatus"),
+      invocation("search.embedModels"),
+      invocation("search.embedTest"),
       invocation("officialSearch.get"),
       invocation("officialSearch.set", ["enabled"]),
       invocation("config.get"),

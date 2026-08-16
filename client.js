@@ -40,6 +40,8 @@ window.__ModuleLoader__.load({
       ["workspace.copy", ["name"]],
       ["search.query", ["keyword"]],
       ["search.embed", ["keyword"]],
+      ["search.embedModels", []],
+      ["search.embedTest", []],
       ["search.embedBuild", []],
       ["search.embedStatus", []],
       ["officialSearch.get", []],
@@ -80,7 +82,7 @@ window.__ModuleLoader__.load({
         source: "json",
         codec: strictCodec(`dsh-toolbox#${method}:${wire}`),
       })),
-      ...(method === "search.query" ? { cancellation: { parameter: "signal" } } : {}),
+      ...(method === "search.query" || method === "search.embed" ? { cancellation: { parameter: "signal" } } : {}),
       result: strictCodec(`dsh-toolbox#${method}:result`),
     }));
 
@@ -100,8 +102,6 @@ window.__ModuleLoader__.load({
 
     /** 定时心跳开关（独立分区渲染，配置项紧跟其后）。 */
     const SWITCH_HEART = { key: "scheduleTask", label: "定时心跳", desc: "定时向目标会话注入心跳消息，唤醒 AI 执行巡检/汇报等任务（类似 OpenClaw 心跳模式）。⚠️ 会消耗 token；默认：关", default: false };
-    /** 语义搜索开关（独立分区渲染）。 */
-    const SWITCH_EMBED = { key: "embedSearch", label: "语义搜索", desc: "在线 embedding 语义搜索（需配置下方 API Key；无 Key/失败自动降级关键词搜索；默认：关）", default: false };
     /** 提示语默认值（与后端 lib/settings.js 的 default 保持一致）。 */
     const DEFAULT_HEART_PROMPT = "【定时心跳】请检查当前是否有待办、提醒或需要主动汇报的事项；如有请简要汇报，没有则简短确认即可。";
     const DEFAULT_CRON_PROMPT = "【定时任务】现在是 {time}。请执行定时任务：检查待办与提醒、汇总值得告知用户的事项，并简明汇报。";
@@ -185,6 +185,42 @@ window.__ModuleLoader__.load({
         } catch (e) {
           console.error("dsh-toolbox: config.set 同步抛错(" + key + ")", e);
         }
+      };
+
+      const [embedTestMsg, setEmbedTestMsg] = React.useState("");
+      const [embedTestBusy, setEmbedTestBusy] = React.useState(false);
+      const [embedModelsOpen, setEmbedModelsOpen] = React.useState(false);
+      const [embedModelsList, setEmbedModelsList] = React.useState([]);
+      const [embedModelsBusy, setEmbedModelsBusy] = React.useState(false);
+      const [embedModelsErr, setEmbedModelsErr] = React.useState("");
+      const runEmbedTest = () => {
+        if (embedTestBusy) return;
+        setEmbedTestBusy(true);
+        setEmbedTestMsg("测试中…");
+        tools["search.embedTest"]()
+          .then((resp) => {
+            const r = unwrap(resp);
+            if (r && r.ok) setEmbedTestMsg("✓ 连接成功：" + (r.model || "") + " · " + (r.dim || 0) + " 维 · " + (r.latencyMs || 0) + "ms");
+            else setEmbedTestMsg("✗ 连接失败：" + ((r && r.error) || "未知错误"));
+          })
+          .catch((e) => setEmbedTestMsg("✗ 连接失败：" + String(e)))
+          .finally(() => setEmbedTestBusy(false));
+      };
+      const fetchEmbedModels = () => {
+        if (embedModelsBusy) return;
+        setEmbedModelsBusy(true);
+        setEmbedModelsErr("");
+        tools["search.embedModels"]()
+          .then((resp) => {
+            const r = unwrap(resp);
+            if (r && r.ok) {
+              setEmbedModelsList(r.models || []);
+              setEmbedModelsOpen(true);
+              if (!r.models || r.models.length === 0) setEmbedModelsErr("API 未返回可用模型");
+            } else setEmbedModelsErr((r && r.error) || "获取失败");
+          })
+          .catch((e) => setEmbedModelsErr(String(e)))
+          .finally(() => setEmbedModelsBusy(false));
       };
 
       const scheduleInterval = doc?.scheduleInterval ?? 60;
@@ -470,9 +506,9 @@ window.__ModuleLoader__.load({
           }),
 
 
-          // ── 分区三：语义搜索（独立开关 + 配置，配置仅存本地不提交） ──
+          // ── 分区三：语义搜索（地址/Key/模型 + 测试连接 + 获取模型；无开关，勾选即用） ──
           sectionTitle("🧠 语义搜索"),
-          row(SWITCH_EMBED),
+          jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 8 }, children: "搜索 Tab 勾选「🧠 语义」即按语义匹配；无 Key / API 失败自动降级为关键词搜索。三项配置改动即自动保存（清空 = 恢复默认），Key 仅存本地。" }),
           jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
             children: [
@@ -481,6 +517,7 @@ window.__ModuleLoader__.load({
                 type: "text",
                 value: embedBaseUrl,
                 onChange: (e) => setEmbedField("embedBaseUrl", e.target.value),
+                placeholder: "https://api.siliconflow.cn/v1",
                 style: { width: 260, fontSize: 12, padding: "3px 6px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit" },
               }),
             ],
@@ -493,7 +530,7 @@ window.__ModuleLoader__.load({
                 type: "password",
                 value: embedApiKey,
                 onChange: (e) => setEmbedField("embedApiKey", e.target.value),
-                placeholder: "sk-...",
+                placeholder: "sk-...（清空 = 禁用语义搜索）",
                 style: { width: 260, fontSize: 12, padding: "3px 6px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit" },
               }),
             ],
@@ -506,11 +543,33 @@ window.__ModuleLoader__.load({
                 type: "text",
                 value: embedModel,
                 onChange: (e) => setEmbedField("embedModel", e.target.value),
+                placeholder: "BAAI/bge-m3",
                 style: { width: 260, fontSize: 12, padding: "3px 6px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit" },
               }),
             ],
           }),
-          jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "语义搜索：搜索 Tab 勾选「语义」后按语义匹配；无 Key 或 API 失败自动降级为关键词搜索（不影响现有功能）。" }),
+          jsx("div", {
+            style: { display: "flex", alignItems: "center", gap: 8, padding: "4px 0 8px", flexWrap: "wrap" },
+            children: [
+              jsx(P.Button, { size: "sm", variant: "outline", disabled: embedTestBusy, onClick: runEmbedTest, children: embedTestBusy ? "测试中…" : "🔌 测试连接" }),
+              jsx(P.Button, { size: "sm", variant: "outline", disabled: embedModelsBusy, onClick: fetchEmbedModels, children: embedModelsBusy ? "获取中…" : "📋 获取模型" }),
+              embedTestMsg ? jsx("span", { style: { fontSize: 12, opacity: 0.85 }, children: embedTestMsg }) : null,
+            ],
+          }),
+          embedModelsOpen ? jsx("div", {
+            style: { display: "flex", alignItems: "center", gap: 8, padding: "0 0 8px" },
+            children: [
+              jsx("label", { style: { fontSize: 12, opacity: 0.8, flex: "none" }, children: "可选模型：" }),
+              jsx("select", {
+                value: embedModel,
+                onChange: (e) => setEmbedField("embedModel", e.target.value),
+                style: { flex: 1, fontSize: 12, padding: "3px 6px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit" },
+                children: embedModelsList.map((m) => jsx("option", { key: m, value: m, children: m })),
+              }),
+              jsx(P.Button, { size: "sm", variant: "outline", onClick: () => setEmbedModelsOpen(false), children: "收起" }),
+            ],
+          }) : null,
+          embedModelsErr ? jsx("div", { style: { fontSize: 12, color: "#e5534b", padding: "0 0 8px" }, children: "✗ " + embedModelsErr }) : null,
 
           // ── 分区四：回收站 ──
           sectionTitle("🗑️ 回收站"),
