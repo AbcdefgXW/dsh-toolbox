@@ -38,7 +38,7 @@ window.__ModuleLoader__.load({
       ["workspace.moveSessions", ["name", "targetCwd"]],
       ["workspace.delete", ["name", "sessionsAction"]],
       ["workspace.copy", ["name"]],
-      ["search.query", ["keyword", "fromIndex"]],
+      ["search.query", ["keyword", "fromIndex", "dateFrom", "dateTo"]],
       ["search.embed", ["keyword"]],
       ["search.embedModels", []],
       ["search.embedTest", []],
@@ -184,6 +184,53 @@ window.__ModuleLoader__.load({
         }
       };
       // 语义搜索配置
+      const embedMinScore = doc?.embedMinScore ?? 50;
+      const setEmbedMinScore = (value) => {
+        try {
+          tools["config.set"]("embedMinScore", Math.max(0, Math.min(100, Math.floor(Number(value) || 50))))
+            .then((resp) => setDoc(unwrap(resp) || {}))
+            .catch((e) => console.error("dsh-toolbox: config.set 拒绝(阈值)", e));
+        } catch (e) {
+          console.error("dsh-toolbox: config.set 同步抛错(阈值)", e);
+        }
+      };
+      const embedTopN = doc?.embedTopN ?? 20;
+      const setEmbedTopN = (value) => {
+        try {
+          tools["config.set"]("embedTopN", Math.max(0, Math.floor(Number(value) || 0)))
+            .then((resp) => setDoc(unwrap(resp) || {}))
+            .catch((e) => console.error("dsh-toolbox: config.set 拒绝(条数)", e));
+        } catch (e) {
+          console.error("dsh-toolbox: config.set 同步抛错(条数)", e);
+        }
+      };
+      const searchDateFrom = doc?.searchDateFrom ?? "";
+      const searchDateTo = doc?.searchDateTo ?? "";
+      const setDateField = (key, value) => {
+        try {
+          tools["config.set"](key, value)
+            .then((resp) => setDoc(unwrap(resp) || {}))
+            .catch((e) => console.error("dsh-toolbox: config.set 拒绝(时间范围)", e));
+        } catch (e) {
+          console.error("dsh-toolbox: config.set 同步抛错(时间范围)", e);
+        }
+      };
+      const fmtDT = (dt) => {
+        const p = (n) => String(n).padStart(2, "0");
+        return dt.getFullYear() + "-" + p(dt.getMonth() + 1) + "-" + p(dt.getDate()) + "T" + p(dt.getHours()) + ":" + p(dt.getMinutes());
+      };
+      const quickRange = (kind) => {
+        const now = new Date();
+        const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+        let from, to;
+        if (kind === "today") { from = new Date(y, m, d, 0, 0); to = new Date(y, m, d, 23, 59); }
+        else if (kind === "yesterday") { const t = new Date(y, m, d - 1); from = new Date(t.getFullYear(), t.getMonth(), t.getDate(), 0, 0); to = new Date(t.getFullYear(), t.getMonth(), t.getDate(), 23, 59); }
+        else if (kind === "month") { from = new Date(y, m, 1, 0, 0); to = new Date(y, m, d, 23, 59); }
+        else if (kind === "lastMonth") { const lm = new Date(y, m - 1, 1); from = new Date(lm.getFullYear(), lm.getMonth(), 1, 0, 0); to = new Date(y, m, 0, 23, 59); }
+        else { from = null; to = null; }
+        setDateField("searchDateFrom", from ? fmtDT(from) : "");
+        setDateField("searchDateTo", to ? fmtDT(to) : "");
+      };
       const embedBaseUrl = doc?.embedBaseUrl ?? "https://api.siliconflow.cn/v1";
       const embedApiKey = doc?.embedApiKey ?? "";
       const embedModel = doc?.embedModel ?? "BAAI/bge-m3";
@@ -530,10 +577,61 @@ window.__ModuleLoader__.load({
             ],
           }),
           jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "缓存期内重复搜索同词：关键词免解压、语义免 API 调用；搜索 Tab 会显示倒计时。" }),
+          jsx("div", { style: { fontSize: 12, opacity: 0.8, padding: "8px 0 2px" }, children: "关键词时间范围过滤（仅显示该时间段的记录；留空 = 不限）：" }),
+          jsx("div", {
+            style: { display: "flex", alignItems: "center", gap: 6, padding: "4px 0", flexWrap: "wrap" },
+            children: [
+              jsx("input", {
+                type: "datetime-local",
+                value: searchDateFrom,
+                onChange: (e) => setDateField("searchDateFrom", e.target.value),
+                style: { fontSize: 12, padding: "3px 6px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit" },
+              }),
+              jsx("span", { style: { fontSize: 12, opacity: 0.7 }, children: "~" }),
+              jsx("input", {
+                type: "datetime-local",
+                value: searchDateTo,
+                onChange: (e) => setDateField("searchDateTo", e.target.value),
+                style: { fontSize: 12, padding: "3px 6px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit" },
+              }),
+              jsx(P.Button, { size: "sm", variant: "outline", onClick: () => quickRange("today"), children: "今天" }),
+              jsx(P.Button, { size: "sm", variant: "outline", onClick: () => quickRange("yesterday"), children: "昨天" }),
+              jsx(P.Button, { size: "sm", variant: "outline", onClick: () => quickRange("month"), children: "本月" }),
+              jsx(P.Button, { size: "sm", variant: "outline", onClick: () => quickRange("lastMonth"), children: "上月" }),
+              jsx(P.Button, { size: "sm", variant: "outline", onClick: () => quickRange("clear"), children: "清空" }),
+            ],
+          }),
 
           // ── 分区四：语义搜索（地址/Key/模型 + 测试连接 + 获取模型；无开关，勾选即用） ──
           sectionTitle("🧠 语义搜索"),
-          jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 8 }, children: "搜索 Tab 勾选「🧠 语义」即按语义匹配；无 Key / API 失败自动降级为关键词搜索。三项配置改动即自动保存（清空 = 恢复默认），Key 仅存本地。" }),
+          jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 8 }, children: "搜索 Tab 勾选「🧠 语义」即按语义匹配；无 Key / API 失败/匹配度过低自动降级为关键词搜索。配置改动即自动保存（清空 = 恢复默认），Key 仅存本地。" }),
+          jsx("div", {
+            style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
+            children: [
+              jsx("label", { style: { flex: 1 }, children: "语义相关度阈值（0-100，低于该值视为噪声并降级关键词，默认 50）" }),
+              jsx("input", {
+                type: "number",
+                min: 0,
+                max: 100,
+                value: embedMinScore,
+                onChange: (e) => setEmbedMinScore(e.target.value),
+                style: { width: 72 },
+              }),
+            ],
+          }),
+          jsx("div", {
+            style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
+            children: [
+              jsx("label", { style: { flex: 1 }, children: "语义显示条数（只显示相关度前 N 条，0 = 不限制，默认 20）" }),
+              jsx("input", {
+                type: "number",
+                min: 0,
+                value: embedTopN,
+                onChange: (e) => setEmbedTopN(e.target.value),
+                style: { width: 72 },
+              }),
+            ],
+          }),
           jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
             children: [
@@ -1845,6 +1943,21 @@ window.__ModuleLoader__.load({
       // 已点击的记录标记（本轮搜索内生效；新搜索/手动清除时重置）
       const [clicked, setClicked] = React.useState({});
       const [semantic, setSemantic] = React.useState(false); // 语义搜索模式
+      // 关键词时间范围过滤（设置页配置；打开工具箱时读取一次）
+      const [dateRange, setDateRange] = React.useState(null);
+      React.useEffect(() => {
+        if (tools && typeof tools["config.get"] === "function") {
+          tools["config.get"]()
+            .then((resp) => {
+              const d = unwrap(resp);
+              if (!d) return;
+              const from = d.searchDateFrom ? new Date(String(d.searchDateFrom).replace(" ", "T")).getTime() : 0;
+              const to = d.searchDateTo ? new Date(String(d.searchDateTo).replace(" ", "T")).getTime() + 60000 : 0; // 结束时刻含该分钟
+              setDateRange({ from: Number.isFinite(from) && from > 0 ? from : 0, to: Number.isFinite(to) && to > 0 ? to : 0 });
+            })
+            .catch(() => {});
+        }
+      }, []);
 
       // 状态变化写回持久层（重开面板恢复）
       // 超时询问（partial 时提示继续/取消；「继续」用 forceFull 全量重搜）
@@ -1898,7 +2011,7 @@ window.__ModuleLoader__.load({
                 if (r && r.ok === false && r.fallback) {
                   // 降级：提示后走关键词搜索
                   setMsg("🧠 语义搜索不可用（" + ((r && r.error) || "未知") + "）→ 已降级为关键词搜索");
-                  tools["search.query"](keyword, resume ? fromIndex : 0, ctrl.signal)
+                  tools["search.query"](keyword, resume ? fromIndex : 0, dateRange ? dateRange.from : 0, dateRange ? dateRange.to : 0, ctrl.signal)
                     .then((resp2) => {
                       const r2 = unwrap(resp2);
                       applyCache(r2);
@@ -1934,7 +2047,7 @@ window.__ModuleLoader__.load({
                 const b = unwrap(resp2);
                 if (b && b.ok === false && b.fallback) {
                   setMsg("🧠 语义搜索不可用（" + ((b && b.error) || "索引构建失败") + "）→ 已降级为关键词搜索");
-                  tools["search.query"](keyword, resume ? fromIndex : 0, ctrl.signal)
+                  tools["search.query"](keyword, resume ? fromIndex : 0, dateRange ? dateRange.from : 0, dateRange ? dateRange.to : 0, ctrl.signal)
                     .then((resp3) => {
                       const r3 = unwrap(resp3);
                       applyCache(r3);
@@ -1955,7 +2068,7 @@ window.__ModuleLoader__.load({
             .catch((e) => { setMsg("索引状态失败：" + (e.message || String(e))); setSearching(false); abortRef.current = null; });
           return;
         }
-        tools["search.query"](keyword, resume ? fromIndex : 0, ctrl.signal)
+        tools["search.query"](keyword, resume ? fromIndex : 0, dateRange ? dateRange.from : 0, dateRange ? dateRange.to : 0, ctrl.signal)
           .then((resp) => {
             const r = unwrap(resp);
             applyCache(r);
