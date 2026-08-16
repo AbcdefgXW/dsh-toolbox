@@ -376,11 +376,12 @@ class ToolsApi extends Service {
         let archivedIds = [];
         try { archivedIds = (reg && typeof reg.requireState === "function" && reg.requireState().archivedSessionIds) || []; } catch {}
         const archived = new Set(archivedIds);
-        result.hits = result.hits.filter((h) => {
+        for (const h of result.hits) {
           const s = sessionMap && sessionMap.get(h.sessionId);
-          return s && !(s.header && s.header.parentSession);
-        });
-        for (const h of result.hits) h.bucket = archived.has(h.sessionId) ? "archived" : "visible";
+          if (!s) continue;
+          if (s.header && s.header.parentSession) h.bucket = "subagent";
+          else h.bucket = archived.has(h.sessionId) ? "archived" : "visible";
+        }
       }
       // 调试日志：snippet 命中统计（排查"无内容预览"用，稳定后移除）
       try {

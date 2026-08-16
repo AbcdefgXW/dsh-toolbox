@@ -2225,6 +2225,7 @@ window.__ModuleLoader__.load({
               jsx(P.Button, { size: "sm", variant: scope === "visible" ? "primary" : "outline", onClick: () => setScope("visible"), title: "切换显示分组（结果已一次搜出，即时切换）", children: "可见会话" }),
               jsx(P.Button, { size: "sm", variant: scope === "archived" ? "primary" : "outline", onClick: () => setScope("archived"), title: "切换显示分组（结果已一次搜出，即时切换）", children: "归档会话" }),
               jsx(P.Button, { size: "sm", variant: scope === "trash" ? "primary" : "outline", onClick: () => setScope("trash"), title: "切换显示分组（结果已一次搜出，即时切换）", children: "回收站会话" }),
+              jsx(P.Button, { size: "sm", variant: scope === "subagent" ? "primary" : "outline", onClick: () => setScope("subagent"), title: "切换显示分组（结果已一次搜出，即时切换）", children: "子代理会话" }),
             ],
           }),
           jsx("div", {
