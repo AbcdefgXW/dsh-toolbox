@@ -117,7 +117,7 @@ Defaults apply when unset; all other paths are derived from the plugin's own dir
 
 ## IM Channel Push (optional)
 
-The "📱 WeChat / QQ / Feishu" targets of scheduled heartbeat are an **optional integration**: dsh-toolbox calls the `dsh-channels-push` cordis service to "wake the channel bot → push the AI reply back to the IM".
+The "📱 WeChat / QQ / Feishu" targets of scheduled heartbeat are an **optional integration**: dsh-toolbox-web calls the `dsh-channels-push` cordis service to "wake the channel bot → push the AI reply back to the IM".
 
 - **dsh-msg-hub** is our in-house channel bridge plugin (WeChat ilinkai / QQ Open Platform / Feishu Open Platform); it is **not distributed with this repository** — install it separately ([dsh-msg-hub](https://github.com/AbcdefgXW/dsh-msg-hub))
 - Without that service: channel targets are unavailable (a "channel push service unavailable" note is shown), and heartbeat to the main workspace root / any session is completely unaffected
