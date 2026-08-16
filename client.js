@@ -1912,7 +1912,7 @@ window.__ModuleLoader__.load({
                 }
                 if (r && r.ok && r.hits) {
                   applyCache(r);
-                  const arr = r.hits.map((h) => ({ sessionId: h.sessionId, seq: h.seq, score: h.score, semantic: true }));
+                  const arr = r.hits.map((h) => ({ sessionId: h.sessionId, seq: h.seq, score: h.score, semantic: true, snippet: h.snippet }));
                   setHits(arr);
                   if (arr.length === 0) setMsg("语义无命中");
                   else setMsg("🧠 语义命中 " + arr.length + " 条（共索引 " + (r.total || "?") + " 条消息）");
