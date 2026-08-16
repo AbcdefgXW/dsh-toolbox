@@ -38,7 +38,7 @@ import {
   refreshSessionCounts,
 } from "./lib/workspace.js";
 import {
-  searchSessions,
+  searchAll,
   setOfficialSearch,
   getOfficialSearchState,
   clearSearchCache,
@@ -351,8 +351,13 @@ class ToolsApi extends Service {
     const reg = this.ctx.get("workspaceRegistry");
     let archivedIds = [];
     try { archivedIds = (reg && typeof reg.requireState === "function" && reg.requireState().archivedSessionIds) || []; } catch {}
-    const r = await searchSessions(keyword, signal, 100, Number(fromIndex) > 0 ? Number(fromIndex) : 0, df, dt, archivedIds);
-    return { ok: true, hits: r.hits, partial: r.partial, scanned: r.scanned, total: r.total, memoryMB: r.memoryMB, cache: r.cache };
+    // 官方 SQLite 索引优先（省内存）；不可用时 searchAll 内部兜底全量扫描
+    const sq = this.ctx.get("sessionQuery");
+    const officialSearch = sq && typeof sq.searchSessions === "function"
+      ? (kw, sig) => sq.searchSessions({ query: kw, limit: 400 }, { signal: sig }).then((p) => (p && p.items) || [])
+      : undefined;
+    const r = await searchAll(keyword, signal, df, dt, archivedIds, officialSearch);
+    return { ok: true, hits: r.hits, partial: r.partial, scanned: r.scanned, total: r.total, usedOfficial: r.usedOfficial, memoryMB: r.memoryMB, cache: r.cache };
   }
 
   /** 语义搜索：embedding 查询；失败/无索引 → {ok:false, fallback:true}（前端降级关键词搜索）。 */

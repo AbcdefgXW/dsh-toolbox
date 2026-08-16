@@ -2131,6 +2131,7 @@ window.__ModuleLoader__.load({
             applyResults(arr);
             if (r && r.partial) setPartialAsk({ count: groupCount() + arr.length, scanned: r.scanned || 0, total: r.total || 0, memoryMB: r.memoryMB || 0 });
             else if (arr.length === 0 && !resume) setMsg("无命中");
+            if (r && r.usedOfficial === false && arr.length > 0) setMsg("🔍 命中 " + arr.length + " 条（自研搜索，内存占用高；建议开启「官方搜索开关」并重启，改用 SQLite 索引省内存）");
           })
           .catch((e) => {
             if (e && e.name !== "AbortError") setMsg("搜索失败：" + (e.message || String(e)));
@@ -2178,7 +2179,7 @@ window.__ModuleLoader__.load({
           },
           title: "点击打开会话并定位",
           children: [
-            jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 2 }, children: title + (h.semantic ? " · 🎯 相关度 " + Math.round((h.score || 0) * 100) + "%" : " · 第 " + h.line + " 行") }),
+            jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 2 }, children: title + (h.semantic ? " · 🎯 相关度 " + Math.round((h.score || 0) * 100) + "%" : (h.line ? " · 第 " + h.line + " 行" : "")) }),
             jsx("div", { style: { fontSize: 12, lineHeight: 1.5 }, children: h.semantic ? (h.snippet ? (String(h.snippet).length > 120 ? String(h.snippet).slice(0, 120) + "…" : h.snippet) : "（无内容预览，点击打开定位）") : highlight(h.snippet) }),
           ],
         });
