@@ -851,31 +851,6 @@ window.__ModuleLoader__.load({
             jsx("div", { style: { fontSize: 15, fontWeight: 600 }, children: "🧰 工具箱" }),
             jsx("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
               jsx(P.Button, {
-                size: "sm", variant: "outline",
-                onClick: () => {
-                  // 三态主题轮换：夜间 → 白天 → 跟随系统
-                  try {
-                    const themeSvc = ctx.get("theme");
-                    if (!themeSvc || typeof themeSvc.setTheme !== "function") { setMsg("主题服务不可用"); return; }
-                    const cur = themeSvc.preference;
-                    const next = cur === "dark" ? "light" : cur === "light" ? "system" : "dark";
-                    themeSvc.setTheme(next);
-                    setMsg("主题：" + (next === "dark" ? "夜间 🌙" : next === "light" ? "白天 ☀️" : "跟随系统 🖥️"));
-                  } catch (e) {
-                    setMsg("主题切换失败：" + (e && e.message ? e.message : String(e)));
-                  }
-                },
-                title: "切换主题：夜间 / 白天 / 跟随系统（点击轮换）",
-                children: (() => {
-                  try {
-                    const cur = ctx.get("theme") && ctx.get("theme").preference;
-                    if (cur === "light") return "☀️ 白天";
-                    if (cur === "system") return "🖥️ 跟随";
-                  } catch {}
-                  return "🌙 夜间";
-                })(),
-              }),
-              jsx(P.Button, {
                 size: "sm", variant: "outline", disabled: busy,
                 onClick: () => {
                   setBusy(true); setMsg("");
