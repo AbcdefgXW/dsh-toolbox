@@ -356,10 +356,10 @@ class ToolsApi extends Service {
       let sessionMap = null;
       const resolveSnippet = async (sessionId, seqs) => {
         if (!sessionMap) {
-          sessionMap = new Map((await listAllSessions()).map((s) => [s.sessionId, s.path]));
+          sessionMap = new Map((await listAllSessions()).map((s) => [s.sessionId, s])); // 存整个会话对象（path+cwd）
         }
-        const p = sessionMap.get(sessionId);
-        return p ? readMessagesBySeqs(p, seqs) : {};
+        const s = sessionMap.get(sessionId);
+        return s ? readMessagesBySeqs(s.path, seqs) : {};
       };
       const result = await embedQuery(cfg, String(keyword || "").trim(), 20, signal, resolveSnippet);
       // 搜索范围过滤（语义索引含全部会话；visible 排除归档、archived 仅归档、trash 无索引降级）
@@ -369,7 +369,14 @@ class ToolsApi extends Service {
         try { archivedIds = (reg && typeof reg.requireState === "function" && reg.requireState().archivedSessionIds) || []; } catch {}
         if (scope === "archived") result.hits = result.hits.filter((h) => archivedIds.includes(h.sessionId));
         else if (scope === "trash") return { ok: false, fallback: true, error: "回收站会话未建立语义索引，请用关键词搜索" };
-        else result.hits = result.hits.filter((h) => !archivedIds.includes(h.sessionId)); // visible 默认
+        else {
+          // visible 默认：当前 workspace + 非归档（其他 workspace 会话左侧不可见，不混入）
+          const ws = WORKSPACE_ROOT + path.sep;
+          result.hits = result.hits.filter((h) => {
+            const s = sessionMap && sessionMap.get(h.sessionId);
+            return s && !archivedIds.includes(h.sessionId) && (s.cwd === WORKSPACE_ROOT || s.cwd.startsWith(ws));
+          });
+        }
       }
       // 调试日志：snippet 命中统计（排查"无内容预览"用，稳定后移除）
       try {
