@@ -2363,7 +2363,8 @@ window.__ModuleLoader__.load({
                 const box = scrollContainer();
                 if (!box) return;
                 box.scrollTop = round === 0 ? box.scrollHeight : (round === 1 ? 0 : box.scrollHeight / 2);
-                setTimeout(() => probe(round + 1), 700);
+                // 顶部轮等 2s（dsh 虚拟滚动加载历史需要时间），其他轮 1.2s
+                setTimeout(() => probe(round + 1), round === 1 ? 2000 : 1200);
               };
               probe(0);
               return;
@@ -2378,7 +2379,8 @@ window.__ModuleLoader__.load({
               const box = scrollContainer();
               if (!box) return;
               box.scrollTop = round === 0 ? box.scrollHeight : (round === 1 ? 0 : box.scrollHeight / 2);
-              setTimeout(() => probe(round + 1), 700);
+              // 顶部轮等 2s（dsh 虚拟滚动加载历史需要时间），其他轮 1.2s
+              setTimeout(() => probe(round + 1), round === 1 ? 2000 : 1200);
             };
             probe(0);
           };
