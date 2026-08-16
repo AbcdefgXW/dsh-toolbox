@@ -537,6 +537,7 @@ window.__ModuleLoader__.load({
           }),
           // ── 分区三：搜索（通用搜索设置，关键词/语义共用） ──
           sectionTitle("🔍 搜索"),
+          jsx("div", { style: { fontSize: 12, opacity: 0.75, marginBottom: 8, color: "#e5a54b" }, children: "⚠️ 不建议搜索会话，特别是本地环境：会话多时需解压大量会话，极占内存，可能需要重启 DSH 服务才能恢复。" }),
           jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
             children: [
@@ -554,7 +555,7 @@ window.__ModuleLoader__.load({
 
           // ── 分区四：语义搜索（地址/Key/模型 + 测试连接 + 获取模型；无开关，勾选即用） ──
           sectionTitle("🧠 语义搜索"),
-          jsx("div", { style: { fontSize: 12, opacity: 0.75, marginBottom: 8 }, children: "搜索 Tab 勾选「🧠 语义」即按语义匹配；无 Key / API 失败 / 匹配度过低自动降级为关键词搜索。⚠️ 不建议用语义搜索，特别是本地环境：会话多时需解压大量会话，极占内存，可能需要重启 DSH 服务才能恢复。" }),
+          jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 8 }, children: "搜索 Tab 勾选「🧠 语义」即按语义匹配；无 Key / API 失败 / 匹配度过低自动降级为关键词搜索。配置改动即自动保存，Key 仅存本地。" }),
           jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
             children: [
@@ -1994,8 +1995,9 @@ window.__ModuleLoader__.load({
         const seen = new Set((prev || []).map((h) => h.sessionId + ":" + (h.seq ?? h.line)));
         return [...(prev || []), ...(next || []).filter((h) => !seen.has(h.sessionId + ":" + (h.seq ?? h.line)))];
       };
-      const doSearch = (fromIndex) => {
+      const doSearch = (fromIndex, scopeOverride) => {
         const resume = Number(fromIndex) > 0; // 「继续搜索全部」= 从断点接着扫（每段仍 30 秒）
+        const useScope = scopeOverride || scope; // 切换范围按钮直接触发重搜（scope state 异步，用参数覆盖）
         const keyword = kw.trim();
         if (!keyword || searching) return;
         setClicked({}); // 新搜索清除点击标记
@@ -2008,13 +2010,13 @@ window.__ModuleLoader__.load({
         if (semantic) {
           // 语义搜索：确保索引 → embedding 查询 → 失败降级关键词
           const doEmbed = () => {
-            tools["search.embed"](keyword, scope, ctrl.signal)
+            tools["search.embed"](keyword, useScope, ctrl.signal)
               .then((resp) => {
                 const r = unwrap(resp);
                 if (r && r.ok === false && r.fallback) {
                   // 降级：提示后走关键词搜索
                   setMsg("🧠 语义搜索不可用（" + ((r && r.error) || "未知") + "）→ 已降级为关键词搜索");
-                  tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), scope, ctrl.signal)
+                  tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), useScope, ctrl.signal)
                     .then((resp2) => {
                       const r2 = unwrap(resp2);
                       applyCache(r2);
@@ -2050,7 +2052,7 @@ window.__ModuleLoader__.load({
                 const b = unwrap(resp2);
                 if (b && b.ok === false && b.fallback) {
                   setMsg("🧠 语义搜索不可用（" + ((b && b.error) || "索引构建失败") + "）→ 已降级为关键词搜索");
-                  tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), scope, ctrl.signal)
+                  tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), useScope, ctrl.signal)
                     .then((resp3) => {
                       const r3 = unwrap(resp3);
                       applyCache(r3);
@@ -2071,7 +2073,7 @@ window.__ModuleLoader__.load({
             .catch((e) => { setMsg("索引状态失败：" + (e.message || String(e))); setSearching(false); abortRef.current = null; });
           return;
         }
-        tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), scope, ctrl.signal)
+        tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), useScope, ctrl.signal)
           .then((resp) => {
             const r = unwrap(resp);
             applyCache(r);
@@ -2168,9 +2170,9 @@ window.__ModuleLoader__.load({
             style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" },
             children: [
               jsx("span", { style: { fontSize: 12, opacity: 0.7 }, children: "🔎 范围：" }),
-              jsx(P.Button, { size: "sm", variant: scope === "visible" ? "primary" : "outline", onClick: () => setScope("visible"), children: "可见会话" }),
-              jsx(P.Button, { size: "sm", variant: scope === "archived" ? "primary" : "outline", onClick: () => setScope("archived"), children: "归档会话" }),
-              jsx(P.Button, { size: "sm", variant: scope === "trash" ? "primary" : "outline", onClick: () => setScope("trash"), children: "回收站会话" }),
+              jsx(P.Button, { size: "sm", variant: scope === "visible" ? "primary" : "outline", onClick: () => { setScope("visible"); if (kw.trim() && !searching) doSearch(0, "visible"); }, title: "切换后自动重新搜索", children: "可见会话" }),
+              jsx(P.Button, { size: "sm", variant: scope === "archived" ? "primary" : "outline", onClick: () => { setScope("archived"); if (kw.trim() && !searching) doSearch(0, "archived"); }, title: "切换后自动重新搜索", children: "归档会话" }),
+              jsx(P.Button, { size: "sm", variant: scope === "trash" ? "primary" : "outline", onClick: () => { setScope("trash"); if (kw.trim() && !searching) doSearch(0, "trash"); }, title: "切换后自动重新搜索", children: "回收站会话" }),
             ],
           }),
           jsx("div", {
