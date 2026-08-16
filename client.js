@@ -555,6 +555,7 @@ window.__ModuleLoader__.load({
 
           // ── 分区四：语义搜索（地址/Key/模型 + 测试连接 + 获取模型；无开关，勾选即用） ──
           sectionTitle("🧠 语义搜索"),
+          row({ key: "embedEnabled", label: "语义搜索开关", desc: "默认关（省内存）。开启后搜索页才可切换到「🧠 语义」模式；关闭时只能关键词搜索", default: false }),
           jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 8 }, children: "搜索 Tab 勾选「🧠 语义」即按语义匹配；无 Key / API 失败 / 匹配度过低自动降级为关键词搜索。配置改动即自动保存，Key 仅存本地。" }),
           jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
@@ -940,6 +941,7 @@ window.__ModuleLoader__.load({
                 onClick: (e) => copyId(sess.sessionId, e),
                 children: "📋 " + short + (sess.cwd ? " · " + sess.cwd : "") + (fmtStats(sess) ? " · " + fmtStats(sess) : ""),
               }),
+              sess.latest ? jsx("div", { style: { fontSize: 11, opacity: 0.6, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: "💬 " + sess.latest }) : null,
             ] }),
             jsx(P.Button, {
               size: "sm", disabled: busy,
@@ -1099,7 +1101,7 @@ window.__ModuleLoader__.load({
             cfg.presetEdit !== false && tabBtn("presets", "预设", "⚙️"),
             cfg.configEditor !== false && tabBtn("config", "配置", "📄"),
             tabBtn("archived", "归档", "🗄"),
-            cfg.customSearch !== false && tabBtn("search", "搜索（极占内存）", "🔍"),
+            cfg.customSearch !== false && tabBtn("search", "搜索", "🔍"),
           ] }),
           msg ? jsx("div", { style: { fontSize: 12, marginBottom: 6, opacity: 0.85 }, children: msg }) : null,
           tab === "sessions" && jsx("div", {
@@ -1190,6 +1192,7 @@ window.__ModuleLoader__.load({
                           jsx("div", { style: { flex: 1, minWidth: 0 }, children: [
                             jsx("div", { style: { fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: s.title || "（无标题）" }),
                             jsx("div", { style: { fontSize: 11, opacity: 0.55 }, children: (s.cwd || "") + " · " + (s.turns || 0) + " 轮 · " + (s.size ? (s.size / 1024).toFixed(0) + "KB" : "") }),
+                            s.latest ? jsx("div", { style: { fontSize: 11, opacity: 0.6, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: "💬 " + s.latest }) : null,
                           ] }),
                           jsx(P.Button, { size: "sm", variant: "outline", onClick: () => { setDialogReadonly(true); openDialog(s.sessionId); }, children: "查看" }),
                           jsx(P.Button, { size: "sm", variant: "outline", onClick: () => { props.onClose && props.onClose(); props.openSession(s.sessionId); }, children: "打开" }),
@@ -1953,9 +1956,17 @@ window.__ModuleLoader__.load({
       // 关键词时间范围过滤（搜索页内嵌：修改即保存，重新打开工具箱自动恢复）
       const [dateFromStr, setDateFromStr] = React.useState("");
       const [dateToStr, setDateToStr] = React.useState("");
-      const [semCfg, setSemCfg] = React.useState({ minScore: 80, topN: 20 }); // 语义阈值/条数（设置页配置）
+      const [semCfg, setSemCfg] = React.useState({ enabled: false, minScore: 80, topN: 20 }); // 语义开关/阈值/条数（设置页配置）
       const [scope, setScope] = React.useState("visible"); // 当前显示分组：visible/archived/trash（切换纯前端，不重搜）
-      const [groups, setGroups] = React.useState({ visible: [], archived: [], trash: [] }); // 一次搜索全部分组结果
+      const [groups, setGroups] = React.useState(() => {
+        // 重开面板时从持久化结果重建分组（否则挂载后的同步 useEffect 会用空分组覆盖恢复的 hits）
+        const g = { visible: [], archived: [], trash: [], subagent: [] };
+        for (const h of searchPersist.hits || []) {
+          const b = h.bucket || "visible";
+          if (g[b]) g[b].push(h);
+        }
+        return g;
+      }); // 一次搜索全部分组结果
       React.useEffect(() => {
         setHits(groups[scope] || []); // 切换标签/结果落地时同步当前显示
       }, [groups, scope]);
@@ -1981,7 +1992,7 @@ window.__ModuleLoader__.load({
               if (!d) return;
               setDateFromStr(d.searchDateFrom || "");
               setDateToStr(d.searchDateTo || "");
-              setSemCfg({ minScore: Number.isFinite(Number(d.embedMinScore)) ? d.embedMinScore : 80, topN: Number.isFinite(Number(d.embedTopN)) && Number(d.embedTopN) > 0 ? d.embedTopN : 0 });
+              setSemCfg({ enabled: d.embedEnabled !== false, minScore: Number.isFinite(Number(d.embedMinScore)) ? d.embedMinScore : 80, topN: Number.isFinite(Number(d.embedTopN)) && Number(d.embedTopN) > 0 ? d.embedTopN : 0 });
             })
             .catch(() => {});
         }
@@ -2190,8 +2201,9 @@ window.__ModuleLoader__.load({
           jsx("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }, children: [
             jsx(P.Button, {
               size: "sm", variant: semantic ? "primary" : "outline",
+              disabled: semCfg.enabled === false,
               onClick: () => setSemantic(!semantic),
-              title: "语义搜索需要配置 Embedding API Key（设置 → 工具箱）；无 Key/失败自动降级",
+              title: semCfg.enabled === false ? "语义搜索已关闭（设置 → 工具箱 → 🧠 语义搜索 开启开关）" : "语义搜索需要配置 Embedding API Key；无 Key/失败自动降级",
               children: semantic ? "🧠 语义" : "🔍 关键词",
             }),
             jsx("input", {
@@ -2445,9 +2457,9 @@ window.__ModuleLoader__.load({
                 if (round >= 3) return;
                 const box = scrollContainer();
                 if (!box) return;
-                box.scrollTop = round === 0 ? box.scrollHeight : (round === 1 ? 0 : box.scrollHeight / 2);
-                // 顶部轮等 2s（dsh 虚拟滚动加载历史需要时间），其他轮 1.2s
-                setTimeout(() => probe(round + 1), round === 1 ? 2000 : 1200);
+                box.scrollTop = round === 0 ? box.scrollHeight : (round >= 2 ? box.scrollHeight / 2 : 0);
+                // 底部/中部 1.8s；顶部两段各 3s（触发 dsh「加载更多」历史渲染，避免跳动）
+                setTimeout(() => probe(round + 1), round === 0 ? 1800 : (round <= 2 ? 3000 : 1800));
               };
               probe(0);
               return;
@@ -2461,9 +2473,9 @@ window.__ModuleLoader__.load({
               if (round >= 3) return;
               const box = scrollContainer();
               if (!box) return;
-              box.scrollTop = round === 0 ? box.scrollHeight : (round === 1 ? 0 : box.scrollHeight / 2);
-              // 顶部轮等 2s（dsh 虚拟滚动加载历史需要时间），其他轮 1.2s
-              setTimeout(() => probe(round + 1), round === 1 ? 2000 : 1200);
+              box.scrollTop = round === 0 ? box.scrollHeight : (round >= 2 ? box.scrollHeight / 2 : 0);
+              // 底部/中部 1.8s；顶部两段各 3s（触发 dsh「加载更多」历史渲染，避免跳动）
+              setTimeout(() => probe(round + 1), round === 0 ? 1800 : (round <= 2 ? 3000 : 1800));
             };
             probe(0);
           };

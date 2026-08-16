@@ -139,18 +139,27 @@ class ToolsApi extends Service {
   // ── 会话管理 ──
   async "sessions.list"() {
     const all = await listAllSessions();
-    return all.map((s) => {
+    const out = [];
+    for (const s of all) {
       const stats = readSessionStatsLite(s.path, s.sessionId);
-      return {
+      // 最新一条消息预览：只解尾部帧（内存可控），不解压全部
+      let latest = null;
+      try {
+        const r = listMessagesTail(s.path, 1);
+        if (r.ok && r.messages && r.messages.length) latest = String(r.messages[r.messages.length - 1].content).slice(0, 80);
+      } catch {}
+      out.push({
         sessionId: s.sessionId,
         cwd: s.cwd,
         title: stats?.title ?? null,
         size: stats?.size ?? 0,
         turns: stats?.turns ?? 0,
+        latest,
         parentSession: s.header?.parentSession ?? null, // 子代理会话标记（前端分 tab 管理）
         delegationDepth: s.header?.delegationDepth ?? 0,
-      };
-    });
+      });
+    }
+    return out;
   }
 
   /** 释放内存：清空插件缓存 + 尽力触发 GC（dsh 未开 --expose-gc 时只清缓存）。 */
@@ -363,6 +372,7 @@ class ToolsApi extends Service {
   /** 语义搜索：embedding 查询；失败/无索引 → {ok:false, fallback:true}（前端降级关键词搜索）。 */
   async "search.embed"(keyword, signal) {
     const cfg = getConfig();
+    if (cfg.embedEnabled === false) return { ok: false, fallback: true, error: "语义搜索已关闭（设置 → 工具箱 → 🧠 语义搜索 开启开关后使用）" };
     if (!String(cfg.embedApiKey || "").trim()) return { ok: false, fallback: true, error: "未配置 embedding API Key（设置 → 工具箱 → 🧠 语义搜索）" };
     try {
       // 命中后按需解压目标会话补内容预览（会话路径映射只建一次；按会话批量取）
