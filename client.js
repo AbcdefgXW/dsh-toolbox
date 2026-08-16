@@ -173,6 +173,16 @@ window.__ModuleLoader__.load({
           console.error("dsh-toolbox: config.set 同步抛错(阈值)", e);
         }
       };
+      const searchCacheSec = doc?.searchCacheSeconds ?? 120;
+      const setSearchCacheSec = (value) => {
+        try {
+          tools["config.set"]("searchCacheSeconds", Math.max(0, Math.floor(Number(value) || 0)))
+            .then((resp) => setDoc(unwrap(resp) || {}))
+            .catch((e) => console.error("dsh-toolbox: config.set 拒绝(缓存秒数)", e));
+        } catch (e) {
+          console.error("dsh-toolbox: config.set 同步抛错(缓存秒数)", e);
+        }
+      };
       // 语义搜索配置
       const embedBaseUrl = doc?.embedBaseUrl ?? "https://api.siliconflow.cn/v1";
       const embedApiKey = doc?.embedApiKey ?? "";
@@ -500,6 +510,19 @@ window.__ModuleLoader__.load({
                 min: 0,
                 value: threshold,
                 onChange: (e) => setThreshold(e.target.value),
+                style: { width: 72 },
+              }),
+            ],
+          }),
+          jsx("div", {
+            style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
+            children: [
+              jsx("label", { style: { flex: 1 }, children: "搜索缓存秒数（关键词/语义同词缓存，0 = 不缓存，默认 120）" }),
+              jsx("input", {
+                type: "number",
+                min: 0,
+                value: searchCacheSec,
+                onChange: (e) => setSearchCacheSec(e.target.value),
                 style: { width: 72 },
               }),
             ],
@@ -1816,6 +1839,24 @@ window.__ModuleLoader__.load({
       const [semantic, setSemantic] = React.useState(false); // 语义搜索模式
 
       // 状态变化写回持久层（重开面板恢复）
+      // 缓存倒计时
+      const [cacheExpiresAt, setCacheExpiresAt] = React.useState(0);
+      const [cacheLeft, setCacheLeft] = React.useState(null);
+      React.useEffect(() => {
+        if (!cacheExpiresAt) { setCacheLeft(null); return undefined; }
+        const tick = () => {
+          const left = Math.ceil((cacheExpiresAt - Date.now()) / 1000);
+          if (left <= 0) { setCacheLeft(0); return; }
+          setCacheLeft(left);
+        };
+        tick();
+        const t = setInterval(tick, 1000);
+        return () => clearInterval(t);
+      }, [cacheExpiresAt]);
+      const applyCache = (r) => {
+        if (r && r.cache && typeof r.cache.expiresInMs === "number") setCacheExpiresAt(Date.now() + r.cache.expiresInMs);
+      };
+
       React.useEffect(() => {
         searchPersist.kw = kw;
         searchPersist.hits = hits;
@@ -1843,6 +1884,7 @@ window.__ModuleLoader__.load({
                   tools["search.query"](keyword, ctrl.signal)
                     .then((resp2) => {
                       const r2 = unwrap(resp2);
+                      applyCache(r2);
                       const arr = r2 && r2.hits ? r2.hits : [];
                       setHits(arr);
                       if (r2 && r2.partial) setMsg("⚠️ 搜索超时（会话较多），仅返回前 " + arr.length + " 条命中，可改用 🧠 语义搜索");
@@ -1852,6 +1894,7 @@ window.__ModuleLoader__.load({
                   return;
                 }
                 if (r && r.ok && r.hits) {
+                  applyCache(r);
                   const arr = r.hits.map((h) => ({ sessionId: h.sessionId, seq: h.seq, score: h.score, semantic: true }));
                   setHits(arr);
                   if (arr.length === 0) setMsg("语义无命中");
@@ -1877,6 +1920,7 @@ window.__ModuleLoader__.load({
                   tools["search.query"](keyword, ctrl.signal)
                     .then((resp3) => {
                       const r3 = unwrap(resp3);
+                      applyCache(r3);
                       setHits((r3 && r3.hits) || []);
                       if (r3 && r3.partial) setMsg("⚠️ 搜索超时（会话较多），仅返回前 " + ((r3.hits || []).length) + " 条命中，可改用 🧠 语义搜索");
                       else if (!r3 || !r3.hits || r3.hits.length === 0) setMsg("无命中");
@@ -1896,6 +1940,7 @@ window.__ModuleLoader__.load({
         tools["search.query"](keyword, ctrl.signal)
           .then((resp) => {
             const r = unwrap(resp);
+            applyCache(r);
             const arr = r && r.hits ? r.hits : [];
             setHits(arr);
             if (r && r.partial) setMsg("⚠️ 搜索超时（会话较多），仅返回前 " + arr.length + " 条命中，可改用 🧠 语义搜索");
@@ -1979,6 +2024,7 @@ window.__ModuleLoader__.load({
             }),
           ] }),
           msg ? jsx("div", { style: { fontSize: 12, marginBottom: 6, opacity: 0.85 }, children: msg }) : null,
+          cacheLeft != null ? jsx("div", { style: { fontSize: 12, marginBottom: 6, opacity: 0.7 }, children: cacheLeft > 0 ? ("⏱ 缓存倒计时：" + cacheLeft + "s" + (semantic ? "（同词搜索免 API 调用）" : "（同词搜索免解压）")) : "⏱ 缓存已过期（下次同词搜索将重新计算）" }) : null,
           searching
             ? jsx("div", { style: { opacity: 0.6, padding: 12, fontSize: 13 }, children: "搜索中…（正在逐会话检索，会话多时可能超过 30 秒，可点「取消」停止；超时会自动返回部分结果）" })
             : hits.map(row),

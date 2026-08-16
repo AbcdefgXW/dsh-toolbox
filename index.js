@@ -338,7 +338,7 @@ class ToolsApi extends Service {
   // ── 搜索 ──
   async "search.query"(keyword, signal) {
     const r = await searchSessions(keyword, signal);
-    return { ok: true, hits: r.hits, partial: r.partial };
+    return { ok: true, hits: r.hits, partial: r.partial, cache: r.cache };
   }
 
   /** 语义搜索：embedding 查询；失败/无索引 → {ok:false, fallback:true}（前端降级关键词搜索）。 */
@@ -346,7 +346,7 @@ class ToolsApi extends Service {
     const cfg = getConfig();
     if (!String(cfg.embedApiKey || "").trim()) return { ok: false, fallback: true, error: "未配置 embedding API Key（设置 → 工具箱 → 🧠 语义搜索）" };
     try {
-      return await embedQuery(cfg, String(keyword || "").trim());
+      return await embedQuery(cfg, String(keyword || "").trim(), 20, signal);
     } catch (err) {
       return { ok: false, fallback: true, error: String(err) };
     }
