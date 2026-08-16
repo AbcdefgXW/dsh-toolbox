@@ -1,7 +1,7 @@
 {
   "name": "dsh-toolbox-web",
-  "version": "0.1.1",
-  "description": "dsh 增强工具集：会话管理（删除/移动/复制/重设工作区根）、子目录管理、预设编辑、编辑器增强、自研搜索、官方搜索开关",
+  "version": "0.1.2",
+  "description": "dsh 工具箱：会话/回收站/子目录/搜索/预设/配置管理 + 定时心跳（IM 渠道推送）+ 长消息折叠 | Toolbox plugin for dsh: session/trash/subdir/search/preset/config management + scheduled heartbeat (IM push) + long-message collapse",
   "type": "module",
   "main": "index.js",
   "dependencies": {
