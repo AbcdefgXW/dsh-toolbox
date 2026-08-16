@@ -96,11 +96,12 @@ window.__ModuleLoader__.load({
       { key: "officialSearch", label: "官方搜索开关", desc: "⚠️ 需重启生效。启用 dsh 官方全文搜索（openAt: startup）（默认：关）", default: false },
       { key: "collapseUserMsg", label: "用户长消息折叠", desc: "你发送的消息超过「折叠行数阈值」时自动折叠显示，点击「展开全部」查看（默认：开；改后刷新页面生效）" },
       { key: "collapseAiMsg", label: "AI 长消息折叠", desc: "AI 回复超过「折叠行数阈值」时自动折叠显示（默认：关；阈值同上）", default: false },
-      { key: "embedSearch", label: "语义搜索", desc: "在线 embedding 语义搜索（需配置下方 API Key；无 Key/失败自动降级关键词搜索；默认：关）", default: false },
     ];
 
     /** 定时心跳开关（独立分区渲染，配置项紧跟其后）。 */
     const SWITCH_HEART = { key: "scheduleTask", label: "定时心跳", desc: "定时向目标会话注入心跳消息，唤醒 AI 执行巡检/汇报等任务（类似 OpenClaw 心跳模式）。⚠️ 会消耗 token；默认：关", default: false };
+    /** 语义搜索开关（独立分区渲染）。 */
+    const SWITCH_EMBED = { key: "embedSearch", label: "语义搜索", desc: "在线 embedding 语义搜索（需配置下方 API Key；无 Key/失败自动降级关键词搜索；默认：关）", default: false };
     /** 提示语默认值（与后端 lib/settings.js 的 default 保持一致）。 */
     const DEFAULT_HEART_PROMPT = "【定时心跳】请检查当前是否有待办、提醒或需要主动汇报的事项；如有请简要汇报，没有则简短确认即可。";
     const DEFAULT_CRON_PROMPT = "【定时任务】现在是 {time}。请执行定时任务：检查待办与提醒、汇总值得告知用户的事项，并简明汇报。";
@@ -467,6 +468,11 @@ window.__ModuleLoader__.load({
               }),
             ],
           }),
+
+
+          // ── 分区三：语义搜索（独立开关 + 配置，配置仅存本地不提交） ──
+          sectionTitle("🧠 语义搜索"),
+          row(SWITCH_EMBED),
           jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
             children: [
@@ -506,7 +512,7 @@ window.__ModuleLoader__.load({
           }),
           jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "语义搜索：搜索 Tab 勾选「语义」后按语义匹配；无 Key 或 API 失败自动降级为关键词搜索（不影响现有功能）。" }),
 
-          // ── 分区三：回收站 ──
+          // ── 分区四：回收站 ──
           sectionTitle("🗑️ 回收站"),
           jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
