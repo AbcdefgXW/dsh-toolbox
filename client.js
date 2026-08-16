@@ -1036,6 +1036,7 @@ window.__ModuleLoader__.load({
       };
       return jsx("div", {
         style: overlayStyle,
+        "data-dsh-toolbox-overlay": "1",
         onClick: (e) => {
           if (window.__dsdDrag) { e.stopPropagation(); return; }
           props.onClose();
@@ -1145,7 +1146,7 @@ window.__ModuleLoader__.load({
             ],
           }),
           (tab === "subdirs") && jsx(SubdirsTab, { tools, unwrap, run, confirm, subdirs, refreshSubdirs, sessions, currentId, refreshSessions, wsList }),
-          (tab === "search") && jsx(SearchTab, { tools, unwrap, list, openSession: props.openSession }),
+          (tab === "search") && jsx(SearchTab, { tools, unwrap, list, openSession: props.openSession, onClose: props.onClose }),
           (tab === "presets") && jsx(PresetsTab, { tools, unwrap, run }),
           (tab === "config") && jsx(ConfigTab, { tools, unwrap }),
           (tab === "archived") && jsx(ArchivedTab, { tools, unwrap, run, confirm, currentId, openView: (id) => { setDialogReadonly(true); openDialog(id); }, onCopy: copyId }),
@@ -1883,7 +1884,7 @@ window.__ModuleLoader__.load({
 
     /** 自研搜索 Tab */
     function SearchTab(props) {
-      const { tools, unwrap, list, openSession } = props;
+      const { tools, unwrap, list, openSession, onClose } = props;
       const [kw, setKw] = React.useState(searchPersist.kw);
       const [hits, setHits] = React.useState(searchPersist.hits);
       const [searching, setSearching] = React.useState(searchPersist.searching);
@@ -2097,6 +2098,7 @@ window.__ModuleLoader__.load({
           onClick: (e) => {
             e.preventDefault(); e.stopPropagation();
             setClicked({ ...clicked, [hkey]: true });
+            if (onClose) { try { onClose(); } catch {} } // 先关面板露出会话区，再定位
             if (openSession) openSession(h.sessionId, kw, h.seq, !!h.semantic, h.snippet);
           },
           title: "点击打开会话并定位",
@@ -2331,6 +2333,8 @@ window.__ModuleLoader__.load({
             const matches = [];
             let node;
             while ((node = walker.nextNode())) {
+              // 跳过工具箱面板自身（面板里也渲染命中文本，会误闪/误滚到面板）
+              if (node.parentElement && node.parentElement.closest("[data-dsh-toolbox-overlay]")) continue;
               const t = node.textContent || "";
               if (needle && t.includes(needle)) matches.push(node.parentElement);
             }
