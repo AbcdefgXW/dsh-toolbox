@@ -10,7 +10,7 @@
  * 注意：浏览器直接加载，不能用 JSX 语法——用 react/jsx-runtime 的 jsx()。
  */
 window.__ModuleLoader__.load({
-  id: "dsh-toolbox",
+  id: "dsh-toolbox-web",
   factory: (require) => {
     const { jsx } = require("react/jsx-runtime");
     const React = require("react");
