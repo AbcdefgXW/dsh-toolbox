@@ -382,6 +382,16 @@ class ToolsApi extends Service {
           if (s.header && s.header.parentSession) h.bucket = "subagent";
           else h.bucket = archived.has(h.sessionId) ? "archived" : "visible";
         }
+        // 每桶独立 topN（避免高分组占满全局上限导致其他组为空）
+        const perBucket = new Map();
+        const keep = [];
+        for (const h of result.hits) {
+          const n = perBucket.get(h.bucket) || 0;
+          if (n >= 20) continue;
+          perBucket.set(h.bucket, n + 1);
+          keep.push(h);
+        }
+        result.hits = keep;
       }
       // 调试日志：snippet 命中统计（排查"无内容预览"用，稳定后移除）
       try {
