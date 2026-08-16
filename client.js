@@ -95,8 +95,8 @@ window.__ModuleLoader__.load({
       { key: "presetEdit", label: "预设编辑", desc: "设置 → Agent 预设 → 自定义 agent 加「编辑」按钮（默认：开）" },
 
       { key: "configEditor", label: "配置编辑器", desc: "「打开配置文件」在线编辑能力，dsh 默认只读（默认：开）" },
-      { key: "customSearch", label: "自研搜索", desc: "关键词搜索所有会话内容：高亮 + 跳转 + 可取消（默认：开）" },
-      { key: "officialSearch", label: "官方搜索开关", desc: "⚠️ 需重启生效。启用 dsh 官方全文搜索（openAt: startup）（默认：关）", default: false },
+      { key: "customSearch", label: "自研搜索", desc: "关键词搜索所有会话内容：高亮 + 跳转 + 可取消（默认：关）。⚠️ 占内存，使用后必须重启 DSH 服务才会释放" },
+      { key: "officialSearch", label: "官方搜索开关", desc: "⚠️ 需重启生效。启用 dsh 官方全文搜索（SQLite 索引，占用最低，建议优先）（默认：关）", default: false },
       { key: "collapseUserMsg", label: "用户长消息折叠", desc: "你发送的消息超过「折叠行数阈值」时自动折叠显示，点击「展开全部」查看（默认：开；改后刷新页面生效）" },
       { key: "collapseAiMsg", label: "AI 长消息折叠", desc: "AI 回复超过「折叠行数阈值」时自动折叠显示（默认：关；阈值同上）", default: false },
     ];
@@ -670,7 +670,7 @@ window.__ModuleLoader__.load({
                 size: "sm", variant: "outline",
                 style: { color: "#e5534b", borderColor: "rgba(229,83,75,0.5)", fontWeight: 600 },
                 onClick: () => {
-                  if (!window.confirm("确定将本页所有设置恢复默认？\n\n将清除：语义搜索 Key、时间范围、心跳配置、各项开关等全部设置，且需重新配置 Embedding Key。")) return;
+                  if (!window.confirm("确定将本页所有设置恢复默认？\n\n将恢复：开关、阈值、时间范围、心跳配置等全部默认值（Embedding API Key 保留）。")) return;
                   tools["config.reset"]()
                     .then((resp) => { const d = unwrap(resp); if (d) setDoc(d); setMsg("✅ 已恢复默认设置"); })
                     .catch((e) => setMsg("恢复失败：" + (e && e.message ? e.message : String(e))));
