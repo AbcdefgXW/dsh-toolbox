@@ -2454,12 +2454,12 @@ window.__ModuleLoader__.load({
               const probe = (round) => {
                 const ms = findTextEls(needle);
                 if (ms.length > 0) { flash(ms[0]); return; }
-                if (round >= 3) return;
+                if (round >= 7) return;
                 const box = scrollContainer();
                 if (!box) return;
-                box.scrollTop = round === 0 ? box.scrollHeight : (round >= 2 ? box.scrollHeight / 2 : 0);
-                // 底部/中部 1.8s；顶部两段各 3s（触发 dsh「加载更多」历史渲染，避免跳动）
-                setTimeout(() => probe(round + 1), round === 0 ? 1800 : (round <= 2 ? 3000 : 1800));
+                box.scrollTop = round === 0 ? box.scrollHeight : (round >= 5 ? box.scrollHeight / 2 : 0);
+                // 底部 2s → 顶部 4 段各 3s（首次加载 + 「加载更多」历史渲染共 12s 窗口）→ 中部 2s
+                setTimeout(() => probe(round + 1), round === 0 ? 2000 : (round <= 4 ? 3000 : 2000));
               };
               probe(0);
               return;
@@ -2470,16 +2470,16 @@ window.__ModuleLoader__.load({
             const probe = (round) => {
               const ms = findTextEls(needle);
               if (ms.length > 0) { flash(ms[0]); return; }
-              if (round >= 3) return;
+              if (round >= 7) return;
               const box = scrollContainer();
               if (!box) return;
-              box.scrollTop = round === 0 ? box.scrollHeight : (round >= 2 ? box.scrollHeight / 2 : 0);
-              // 底部/中部 1.8s；顶部两段各 3s（触发 dsh「加载更多」历史渲染，避免跳动）
-              setTimeout(() => probe(round + 1), round === 0 ? 1800 : (round <= 2 ? 3000 : 1800));
+              box.scrollTop = round === 0 ? box.scrollHeight : (round >= 5 ? box.scrollHeight / 2 : 0);
+              // 底部 2s → 顶部 4 段各 3s（首次加载 + 「加载更多」历史渲染共 12s 窗口）→ 中部 2s
+              setTimeout(() => probe(round + 1), round === 0 ? 2000 : (round <= 4 ? 3000 : 2000));
             };
             probe(0);
           };
-          setTimeout(tryLocate, 700);
+          setTimeout(tryLocate, 1500); // 首次打开会话 dsh 渲染需要时间
         };
         // 官方分叉复制：store 感知左侧立即可见；fork 后自定义命名为「原标题-副本x」
         const forkSession = (sessionId) => {
