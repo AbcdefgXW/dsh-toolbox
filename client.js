@@ -660,8 +660,9 @@ window.__ModuleLoader__.load({
             ],
           }),
           jsx("div", { style: { fontSize: 12, opacity: 0.6, marginTop: 8 }, children: "回收站自动清除：启动时 + 每 6 小时扫描一次。" }),
+          jsx("div", { style: { borderTop: "1px solid rgba(128,128,128,0.2)", marginTop: 12, paddingTop: 10 } }),
           jsx("div", {
-            style: { display: "flex", alignItems: "center", justifyContent: "center", padding: "12px 0 4px" },
+            style: { display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "6px 0 2px" },
             children: [
               jsx(P.Button, {
                 size: "sm", variant: "outline",
