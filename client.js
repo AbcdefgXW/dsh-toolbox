@@ -559,7 +559,7 @@ window.__ModuleLoader__.load({
           jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
             children: [
-              jsx("label", { style: { flex: 1 }, children: "语义相关度阈值（0-100，低于该值视为噪声并降级关键词，默认 50）" }),
+              jsx("label", { style: { flex: 1 }, children: "语义相关度阈值（0-100，低于该值视为噪声并降级关键词，默认 80）" }),
               jsx("input", {
                 type: "number",
                 min: 0,
