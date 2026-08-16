@@ -1,6 +1,6 @@
 {
   "name": "dsh-toolbox-web",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "dsh 增强工具集：会话管理（删除/移动/复制/重设工作区根）、子目录管理、预设编辑、编辑器增强、自研搜索、官方搜索开关",
   "type": "module",
   "main": "index.js",
