@@ -382,10 +382,18 @@ class ToolsApi extends Service {
           if (s.header && s.header.parentSession) h.bucket = "subagent";
           else h.bucket = archived.has(h.sessionId) ? "archived" : "visible";
         }
-        // 每桶独立 topN（避免高分组占满全局上限导致其他组为空）
+        // 字面命中保底：snippet 包含搜索词（字面）→ 提到 0.99（embedding 短查询分数天然偏低，如「你是 dsh」仅 0.66）
+        const kwLow = String(keyword || "").trim().toLowerCase();
+        for (const h of result.hits) {
+          if (h.snippet && kwLow && String(h.snippet).toLowerCase().includes(kwLow)) h.score = Math.max(h.score || 0, 0.99);
+        }
+        result.hits.sort((a, b) => b.score - a.score);
+        // 最终阈值过滤（配置的 embedMinScore）+ 每桶独立 topN
+        const finalMin = (Number(cfg.embedMinScore) || 80) / 100;
         const perBucket = new Map();
         const keep = [];
         for (const h of result.hits) {
+          if (h.score < finalMin) continue;
           const n = perBucket.get(h.bucket) || 0;
           if (n >= 20) continue;
           perBucket.set(h.bucket, n + 1);

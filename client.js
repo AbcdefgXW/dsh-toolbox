@@ -1191,7 +1191,7 @@ window.__ModuleLoader__.load({
                             jsx("div", { style: { fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: s.title || "（无标题）" }),
                             jsx("div", { style: { fontSize: 11, opacity: 0.55 }, children: (s.cwd || "") + " · " + (s.turns || 0) + " 轮 · " + (s.size ? (s.size / 1024).toFixed(0) + "KB" : "") }),
                           ] }),
-                          jsx(P.Button, { size: "sm", variant: "outline", onClick: () => { props.onClose && props.onClose(); props.openSession(s.sessionId); }, children: "打开" }),
+                          jsx(P.Button, { size: "sm", variant: "outline", onClick: () => { props.onClose && props.onClose(); props.openSession(s.sessionId); }, children: "查看" }),
                           jsx(P.Button, { size: "sm", variant: "outline", onClick: () => copyId(s.sessionId), children: "复制 ID" }),
                           jsx(P.Button, { size: "sm", variant: "outline", onClick: () => confirm("删除子代理会话「" + (s.title || s.sessionId.slice(0, 12)) + "」？文件将移入回收站（可恢复）") && run("删除", () => tools["sessions.delete"](s.sessionId), refreshSessions), children: "删除" }),
                         ],
