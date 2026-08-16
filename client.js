@@ -2137,6 +2137,30 @@ window.__ModuleLoader__.load({
               children: "🧹 清除搜索",
             }),
           ] }),
+          jsx("div", {
+            style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" },
+            children: [
+              jsx("span", { style: { fontSize: 12, opacity: 0.7 }, children: "🕐 时间范围：" }),
+              jsx("input", {
+                type: "datetime-local",
+                value: dateFromStr,
+                onChange: (e) => setDateField("searchDateFrom", e.target.value),
+                style: { fontSize: 12, padding: "3px 6px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit" },
+              }),
+              jsx("span", { style: { fontSize: 12, opacity: 0.7 }, children: "~" }),
+              jsx("input", {
+                type: "datetime-local",
+                value: dateToStr,
+                onChange: (e) => setDateField("searchDateTo", e.target.value),
+                style: { fontSize: 12, padding: "3px 6px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit" },
+              }),
+              jsx(P.Button, { size: "sm", variant: "outline", onClick: () => quickRange("today"), children: "今天" }),
+              jsx(P.Button, { size: "sm", variant: "outline", onClick: () => quickRange("yesterday"), children: "昨天" }),
+              jsx(P.Button, { size: "sm", variant: "outline", onClick: () => quickRange("month"), children: "本月" }),
+              jsx(P.Button, { size: "sm", variant: "outline", onClick: () => quickRange("lastMonth"), children: "上月" }),
+              (dateFromStr || dateToStr) && jsx(P.Button, { size: "sm", variant: "outline", onClick: () => quickRange("clear"), children: "清空" }),
+            ],
+          }),
           msg ? jsx("div", { style: { fontSize: 12, marginBottom: 6, opacity: 0.85 }, children: msg }) : null,
           cacheLeft != null ? jsx("div", { style: { fontSize: 12, marginBottom: 6, opacity: 0.7 }, children: cacheLeft > 0 ? ("⏱ 缓存倒计时：" + cacheLeft + "s" + (semantic ? "（同词搜索免 API 调用）" : "（同词搜索免解压）")) : "⏱ 缓存已过期（下次同词搜索将重新计算）" }) : null,
           partialAsk ? jsx("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }, children: [
