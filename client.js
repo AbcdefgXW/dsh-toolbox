@@ -1845,7 +1845,8 @@ window.__ModuleLoader__.load({
                       const r2 = unwrap(resp2);
                       const arr = r2 && r2.hits ? r2.hits : [];
                       setHits(arr);
-                      if (arr.length === 0) setMsg("无命中");
+                      if (r2 && r2.partial) setMsg("⚠️ 搜索超时（会话较多），仅返回前 " + arr.length + " 条命中，可改用 🧠 语义搜索");
+                      else if (arr.length === 0) setMsg("无命中");
                     })
                     .catch(() => {});
                   return;
@@ -1877,7 +1878,8 @@ window.__ModuleLoader__.load({
                     .then((resp3) => {
                       const r3 = unwrap(resp3);
                       setHits((r3 && r3.hits) || []);
-                      if (!r3 || !r3.hits || r3.hits.length === 0) setMsg("无命中");
+                      if (r3 && r3.partial) setMsg("⚠️ 搜索超时（会话较多），仅返回前 " + ((r3.hits || []).length) + " 条命中，可改用 🧠 语义搜索");
+                      else if (!r3 || !r3.hits || r3.hits.length === 0) setMsg("无命中");
                     })
                     .catch(() => {});
                   setSearching(false);
@@ -1896,7 +1898,8 @@ window.__ModuleLoader__.load({
             const r = unwrap(resp);
             const arr = r && r.hits ? r.hits : [];
             setHits(arr);
-            if (arr.length === 0) setMsg("无命中");
+            if (r && r.partial) setMsg("⚠️ 搜索超时（会话较多），仅返回前 " + arr.length + " 条命中，可改用 🧠 语义搜索");
+            else if (arr.length === 0) setMsg("无命中");
           })
           .catch((e) => {
             if (e && e.name !== "AbortError") setMsg("搜索失败：" + (e.message || String(e)));
@@ -1977,7 +1980,7 @@ window.__ModuleLoader__.load({
           ] }),
           msg ? jsx("div", { style: { fontSize: 12, marginBottom: 6, opacity: 0.85 }, children: msg }) : null,
           searching
-            ? jsx("div", { style: { opacity: 0.6, padding: 12, fontSize: 13 }, children: "搜索中…（逐帧解压全部会话，最多约 10 秒）" })
+            ? jsx("div", { style: { opacity: 0.6, padding: 12, fontSize: 13 }, children: "搜索中…（正在逐会话检索，会话多时可能超过 10 秒，可点「取消」停止；超时会自动返回部分结果）" })
             : hits.map(row),
         ],
       });

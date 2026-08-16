@@ -337,8 +337,8 @@ class ToolsApi extends Service {
 
   // ── 搜索 ──
   async "search.query"(keyword, signal) {
-    const hits = await searchSessions(keyword, signal);
-    return { ok: true, hits };
+    const r = await searchSessions(keyword, signal);
+    return { ok: true, hits: r.hits, partial: r.partial };
   }
 
   /** 语义搜索：embedding 查询；失败/无索引 → {ok:false, fallback:true}（前端降级关键词搜索）。 */
