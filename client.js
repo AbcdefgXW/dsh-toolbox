@@ -2363,13 +2363,19 @@ window.__ModuleLoader__.load({
               probe(0);
               return;
             }
-            // 3) 关键词路径：滚动到底部触发渲染，再按搜索词文本查找（取最后一个匹配，靠近最新）
-            const box = scrollContainer();
-            if (box) box.scrollTop = box.scrollHeight;
-            setTimeout(() => {
-              const matches = findTextEls(kwText);
-              if (matches.length > 0) flash(matches[matches.length - 1]);
-            }, 500);
+            // 3) 关键词/降级路径：用命中消息的内容片段（snippet）探测定位（比搜索词更精确，支持旧消息）
+            const needle = snippet ? String(snippet).slice(0, 60) : kwText;
+            if (!needle) return;
+            const probe = (round) => {
+              const ms = findTextEls(needle);
+              if (ms.length > 0) { flash(ms[0]); return; }
+              if (round >= 3) return;
+              const box = scrollContainer();
+              if (!box) return;
+              box.scrollTop = round === 0 ? box.scrollHeight : (round === 1 ? 0 : box.scrollHeight / 2);
+              setTimeout(() => probe(round + 1), 700);
+            };
+            probe(0);
           };
           setTimeout(tryLocate, 700);
         };
