@@ -1897,6 +1897,7 @@ window.__ModuleLoader__.load({
       // 关键词时间范围过滤（搜索页内嵌：修改即保存，重新打开工具箱自动恢复）
       const [dateFromStr, setDateFromStr] = React.useState("");
       const [dateToStr, setDateToStr] = React.useState("");
+      const [semCfg, setSemCfg] = React.useState({ minScore: 50, topN: 20 }); // 语义阈值/条数（设置页配置）
       React.useEffect(() => {
         if (tools && typeof tools["config.get"] === "function") {
           tools["config.get"]()
@@ -1905,6 +1906,7 @@ window.__ModuleLoader__.load({
               if (!d) return;
               setDateFromStr(d.searchDateFrom || "");
               setDateToStr(d.searchDateTo || "");
+              setSemCfg({ minScore: Number.isFinite(Number(d.embedMinScore)) ? d.embedMinScore : 50, topN: Number.isFinite(Number(d.embedTopN)) && Number(d.embedTopN) > 0 ? d.embedTopN : 0 });
             })
             .catch(() => {});
         }
@@ -1978,6 +1980,7 @@ window.__ModuleLoader__.load({
         if (!keyword || searching) return;
         setClicked({}); // 新搜索清除点击标记
         setPartialAsk(null);
+        if (!resume) { setHits([]); setMsg(""); } // 新搜索清空旧结果，避免结果未出时误点
         const ctrl = new AbortController();
         abortRef.current = ctrl;
         setSearching(true);
@@ -2008,7 +2011,7 @@ window.__ModuleLoader__.load({
                   const arr = r.hits.map((h) => ({ sessionId: h.sessionId, seq: h.seq, score: h.score, semantic: true, snippet: h.snippet }));
                   setHits(arr);
                   if (arr.length === 0) setMsg("语义无命中");
-                  else setMsg("🧠 语义命中 " + arr.length + " 条（共索引 " + (r.total || "?") + " 条消息）");
+                  else setMsg("🧠 语义命中 " + arr.length + " 条（相关度阈值 " + semCfg.minScore + "% · 最多 " + (semCfg.topN > 0 ? semCfg.topN : "不限") + " 条 · 共索引 " + (r.total || "?") + " 条消息）");
                   return;
                 }
                 setMsg("语义搜索异常：" + ((r && r.error) || "未知"));
@@ -2174,7 +2177,7 @@ window.__ModuleLoader__.load({
             jsx(P.Button, { size: "sm", variant: "outline", onClick: () => { skipPersist.current = true; setKw(""); setHits([]); setMsg(""); setPartialAsk(null); setClicked({}); }, children: "🧹 清除搜索（清空输入与结果）" }),
           ] }) : null,
           searching
-            ? jsx("div", { style: { opacity: 0.6, padding: 12, fontSize: 13 }, children: "搜索中…（正在逐会话检索，会话多时可能超过 30 秒，可点「取消」停止；超时会自动返回部分结果）" })
+            ? jsx("div", { style: { opacity: 0.6, padding: 12, fontSize: 13 }, children: [jsx("span", { className: "dsd-spin" }), "搜索中…（正在逐会话检索，会话多时可能超过 30 秒，可点「取消」停止；超时会询问继续/取消）"] })
             : hits.map(row),
         ],
       });
@@ -2197,6 +2200,8 @@ window.__ModuleLoader__.load({
             ".dsd-fold.dsd-open::after { display: none; }",
             ".dsd-fold-btn { position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); z-index: 5; font-size: 12px; cursor: pointer; user-select: none; border: none; border-radius: 999px; padding: 2px 12px; color: var(--dsw-alias-label-primary, #eee); background: var(--dsw-specific-button-secondary, rgba(128,128,128,0.4)); white-space: nowrap; }",
             ".dsd-fold-btn:hover { background: var(--dsw-specific-button-secondary-hover, rgba(128,128,128,0.6)); }",
+            ".dsd-spin { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(128,128,128,0.3); border-top-color: #9a9a9a; border-radius: 50%; animation: dsd-spin 0.8s linear infinite; vertical-align: -1px; margin-right: 6px; }",
+            "@keyframes dsd-spin { to { transform: rotate(360deg); } }",
           ].join("\n");
           document.head.appendChild(st);
         }
