@@ -81,7 +81,23 @@ Place the plugin directory on the dsh plugin load path (e.g. `$DSH_HOME/plugins/
 
 ## Usage
 
-After restarting `dsh web`, hard-refresh the browser (Ctrl+Shift+R) and click the **🧰 Toolbox** button at the bottom-left (shown as a 🧰 icon on narrow mobile screens). Additional toggles live under **Settings → Toolbox**.
+After restarting `dsh web`, hard-refresh the browser (Ctrl+Shift+R):
+
+1. **🧰 Toolbox** (bottom-left button; 🧰 icon on mobile) — 7 tabs:
+   - **💬 Sessions**: sessions grouped by workspace/tag; per row: delete (to trash), duplicate (`-copyN`), move, reset workspace root, tag, view content; empty sessions labeled `(empty session)`
+   - **🗑️ Trash**: deleted sessions/subdirectories — restore / purge / preview
+   - **📁 Subdirectories**: create / rename / delete / duplicate dirs under a workspace, batch-assign sessions
+   - **🔍 Search**: full-text search across sessions, highlight + click-to-jump
+   - **⚙️ Presets**: edit Agent presets online (`~/.agent-presets`)
+   - **📄 Config**: edit the dsh config file online (YAML validation + atomic write)
+   - **🗄 Archive**: view / restore / delete officially archived sessions
+2. **Settings → Toolbox**: feature toggles + scheduled heartbeat config
+3. **⏰ Scheduled Heartbeat** (optional, OpenClaw-style): Settings → Toolbox → Scheduled Heartbeat
+   - toggle + interval (minutes) + prompt (`{time}` replaced with current time) + countdown to next run
+   - fixed-time schedule: daily / weekly weekday / monthly date, with its own prompt and target
+   - targets: main workspace root (internal checkup) / any session / 📱 WeChat·QQ·Feishu (needs dsh-im-bridge; results pushed to your phone)
+   - the scheduler runs in the dsh backend process — no need to keep the web page open
+4. **📃 Long-message Collapse** (on by default): messages beyond the threshold auto-collapse with an "expand all" button (threshold configurable)
 
 ## Environment Variables
 
