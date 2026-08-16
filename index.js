@@ -370,8 +370,11 @@ class ToolsApi extends Service {
         if (scope === "archived") result.hits = result.hits.filter((h) => archivedIds.includes(h.sessionId));
         else if (scope === "trash") return { ok: false, fallback: true, error: "回收站会话未建立语义索引，请用关键词搜索" };
         else {
-          // visible 默认：非归档（dsh 左侧按 workspace 分组显示全部会话，归档才是隐藏机制）
-          result.hits = result.hits.filter((h) => !archivedIds.includes(h.sessionId));
+          // visible 默认：非归档 + 非子代理（子代理嵌套在父会话下左侧不可见）
+          result.hits = result.hits.filter((h) => {
+            const s = sessionMap && sessionMap.get(h.sessionId);
+            return s && !archivedIds.includes(h.sessionId) && !(s.header && s.header.parentSession);
+          });
         }
       }
       // 调试日志：snippet 命中统计（排查"无内容预览"用，稳定后移除）
