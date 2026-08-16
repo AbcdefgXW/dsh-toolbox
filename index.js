@@ -356,8 +356,20 @@ class ToolsApi extends Service {
         const p = sessionMap.get(sessionId);
         return p ? readMessagesBySeqs(p, seqs) : {};
       };
-      return await embedQuery(cfg, String(keyword || "").trim(), 20, signal, resolveSnippet);
+      const result = await embedQuery(cfg, String(keyword || "").trim(), 20, signal, resolveSnippet);
+      // 调试日志：snippet 命中统计（排查"无内容预览"用，稳定后移除）
+      try {
+        const hits = (result && result.hits) || [];
+        fs.appendFileSync(
+          path.join(PLUGIN_STATE_DIR, "search-debug.log"),
+          new Date().toISOString() + " kw=" + String(keyword || "").slice(0, 24) + " ok=" + (result && result.ok) + " hits=" + hits.length + " withSnippet=" + hits.filter((h) => h && h.snippet).length + "\n",
+        );
+      } catch {}
+      return result;
     } catch (err) {
+      try {
+        fs.appendFileSync(path.join(PLUGIN_STATE_DIR, "search-debug.log"), new Date().toISOString() + " ERROR " + String(err) + "\n");
+      } catch {}
       return { ok: false, fallback: true, error: String(err) };
     }
   }
