@@ -337,15 +337,18 @@ class ToolsApi extends Service {
   }
 
   // ── 搜索 ──
-  async "search.query"(keyword, signal, fromIndex, dateFrom, dateTo) {
+  async "search.query"(keyword, signal, fromIndex, dateFrom, dateTo, scope) {
     const df = Number(dateFrom) > 0 ? Number(dateFrom) : 0;
     const dt = Number(dateTo) > 0 ? Number(dateTo) : 0;
-    const r = await searchSessions(keyword, signal, 100, Number(fromIndex) > 0 ? Number(fromIndex) : 0, df, dt);
+    const reg = this.ctx.get("workspaceRegistry");
+    let archivedIds = [];
+    try { archivedIds = (reg && typeof reg.requireState === "function" && reg.requireState().archivedSessionIds) || []; } catch {}
+    const r = await searchSessions(keyword, signal, 100, Number(fromIndex) > 0 ? Number(fromIndex) : 0, df, dt, scope || "visible", archivedIds);
     return { ok: true, hits: r.hits, partial: r.partial, scanned: r.scanned, total: r.total, memoryMB: r.memoryMB, cache: r.cache };
   }
 
   /** 语义搜索：embedding 查询；失败/无索引 → {ok:false, fallback:true}（前端降级关键词搜索）。 */
-  async "search.embed"(keyword, signal) {
+  async "search.embed"(keyword, signal, scope) {
     const cfg = getConfig();
     if (!String(cfg.embedApiKey || "").trim()) return { ok: false, fallback: true, error: "未配置 embedding API Key（设置 → 工具箱 → 🧠 语义搜索）" };
     try {
@@ -359,6 +362,15 @@ class ToolsApi extends Service {
         return p ? readMessagesBySeqs(p, seqs) : {};
       };
       const result = await embedQuery(cfg, String(keyword || "").trim(), 20, signal, resolveSnippet);
+      // 搜索范围过滤（语义索引含全部会话；visible 排除归档、archived 仅归档、trash 无索引降级）
+      if (result && result.ok && result.hits) {
+        const reg = this.ctx.get("workspaceRegistry");
+        let archivedIds = [];
+        try { archivedIds = (reg && typeof reg.requireState === "function" && reg.requireState().archivedSessionIds) || []; } catch {}
+        if (scope === "archived") result.hits = result.hits.filter((h) => archivedIds.includes(h.sessionId));
+        else if (scope === "trash") return { ok: false, fallback: true, error: "回收站会话未建立语义索引，请用关键词搜索" };
+        else result.hits = result.hits.filter((h) => !archivedIds.includes(h.sessionId)); // visible 默认
+      }
       // 调试日志：snippet 命中统计（排查"无内容预览"用，稳定后移除）
       try {
         const hits = (result && result.hits) || [];
@@ -828,8 +840,8 @@ export function apply(ctx) {
       invocation("workspace.moveSessions", ["name", "targetCwd"]),
       invocation("workspace.delete", ["name", "sessionsAction"]),
       invocation("workspace.copy", ["name"]),
-      invocation("search.query", ["keyword", "fromIndex", "dateFrom", "dateTo"], true),
-      invocation("search.embed", ["keyword"], true),
+      invocation("search.query", ["keyword", "fromIndex", "dateFrom", "dateTo", "scope"], true),
+      invocation("search.embed", ["keyword", "scope"], true),
       invocation("search.embedBuild"),
       invocation("search.embedStatus"),
       invocation("search.embedModels"),

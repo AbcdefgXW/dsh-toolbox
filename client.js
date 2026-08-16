@@ -38,8 +38,8 @@ window.__ModuleLoader__.load({
       ["workspace.moveSessions", ["name", "targetCwd"]],
       ["workspace.delete", ["name", "sessionsAction"]],
       ["workspace.copy", ["name"]],
-      ["search.query", ["keyword", "fromIndex", "dateFrom", "dateTo"]],
-      ["search.embed", ["keyword"]],
+      ["search.query", ["keyword", "fromIndex", "dateFrom", "dateTo", "scope"]],
+      ["search.embed", ["keyword", "scope"]],
       ["search.embedModels", []],
       ["search.embedTest", []],
       ["search.embedBuild", []],
@@ -184,7 +184,7 @@ window.__ModuleLoader__.load({
         }
       };
       // 语义搜索配置
-      const embedMinScore = doc?.embedMinScore ?? 50;
+      const embedMinScore = doc?.embedMinScore ?? 80;
       const setEmbedMinScore = (value) => {
         try {
           tools["config.set"]("embedMinScore", Math.max(0, Math.min(100, Math.floor(Number(value) || 50))))
@@ -553,7 +553,7 @@ window.__ModuleLoader__.load({
 
           // ── 分区四：语义搜索（地址/Key/模型 + 测试连接 + 获取模型；无开关，勾选即用） ──
           sectionTitle("🧠 语义搜索"),
-          jsx("div", { style: { fontSize: 12, opacity: 0.7, marginBottom: 8 }, children: "搜索 Tab 勾选「🧠 语义」即按语义匹配；无 Key / API 失败/匹配度过低自动降级为关键词搜索。配置改动即自动保存（清空 = 恢复默认），Key 仅存本地。" }),
+          jsx("div", { style: { fontSize: 12, opacity: 0.75, marginBottom: 8 }, children: "搜索 Tab 勾选「🧠 语义」即按语义匹配；无 Key / API 失败 / 匹配度过低自动降级为关键词搜索。⚠️ 不建议用语义搜索，特别是本地环境：会话多时需解压大量会话，极占内存，可能需要重启 DSH 服务才能恢复。" }),
           jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
             children: [
@@ -1897,7 +1897,8 @@ window.__ModuleLoader__.load({
       // 关键词时间范围过滤（搜索页内嵌：修改即保存，重新打开工具箱自动恢复）
       const [dateFromStr, setDateFromStr] = React.useState("");
       const [dateToStr, setDateToStr] = React.useState("");
-      const [semCfg, setSemCfg] = React.useState({ minScore: 50, topN: 20 }); // 语义阈值/条数（设置页配置）
+      const [semCfg, setSemCfg] = React.useState({ minScore: 80, topN: 20 }); // 语义阈值/条数（设置页配置）
+      const [scope, setScope] = React.useState("visible"); // 搜索范围：visible/archived/trash
       React.useEffect(() => {
         if (tools && typeof tools["config.get"] === "function") {
           tools["config.get"]()
@@ -1906,7 +1907,7 @@ window.__ModuleLoader__.load({
               if (!d) return;
               setDateFromStr(d.searchDateFrom || "");
               setDateToStr(d.searchDateTo || "");
-              setSemCfg({ minScore: Number.isFinite(Number(d.embedMinScore)) ? d.embedMinScore : 50, topN: Number.isFinite(Number(d.embedTopN)) && Number(d.embedTopN) > 0 ? d.embedTopN : 0 });
+              setSemCfg({ minScore: Number.isFinite(Number(d.embedMinScore)) ? d.embedMinScore : 80, topN: Number.isFinite(Number(d.embedTopN)) && Number(d.embedTopN) > 0 ? d.embedTopN : 0 });
             })
             .catch(() => {});
         }
@@ -1988,13 +1989,13 @@ window.__ModuleLoader__.load({
         if (semantic) {
           // 语义搜索：确保索引 → embedding 查询 → 失败降级关键词
           const doEmbed = () => {
-            tools["search.embed"](keyword, ctrl.signal)
+            tools["search.embed"](keyword, scope, ctrl.signal)
               .then((resp) => {
                 const r = unwrap(resp);
                 if (r && r.ok === false && r.fallback) {
                   // 降级：提示后走关键词搜索
                   setMsg("🧠 语义搜索不可用（" + ((r && r.error) || "未知") + "）→ 已降级为关键词搜索");
-                  tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), ctrl.signal)
+                  tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), scope, ctrl.signal)
                     .then((resp2) => {
                       const r2 = unwrap(resp2);
                       applyCache(r2);
@@ -2030,7 +2031,7 @@ window.__ModuleLoader__.load({
                 const b = unwrap(resp2);
                 if (b && b.ok === false && b.fallback) {
                   setMsg("🧠 语义搜索不可用（" + ((b && b.error) || "索引构建失败") + "）→ 已降级为关键词搜索");
-                  tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), ctrl.signal)
+                  tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), scope, ctrl.signal)
                     .then((resp3) => {
                       const r3 = unwrap(resp3);
                       applyCache(r3);
@@ -2051,7 +2052,7 @@ window.__ModuleLoader__.load({
             .catch((e) => { setMsg("索引状态失败：" + (e.message || String(e))); setSearching(false); abortRef.current = null; });
           return;
         }
-        tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), ctrl.signal)
+        tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), scope, ctrl.signal)
           .then((resp) => {
             const r = unwrap(resp);
             applyCache(r);
@@ -2144,6 +2145,15 @@ window.__ModuleLoader__.load({
               children: "🧹 清除搜索",
             }),
           ] }),
+          jsx("div", {
+            style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" },
+            children: [
+              jsx("span", { style: { fontSize: 12, opacity: 0.7 }, children: "🔎 范围：" }),
+              jsx(P.Button, { size: "sm", variant: scope === "visible" ? "primary" : "outline", onClick: () => setScope("visible"), children: "可见会话" }),
+              jsx(P.Button, { size: "sm", variant: scope === "archived" ? "primary" : "outline", onClick: () => setScope("archived"), children: "归档会话" }),
+              jsx(P.Button, { size: "sm", variant: scope === "trash" ? "primary" : "outline", onClick: () => setScope("trash"), children: "回收站会话" }),
+            ],
+          }),
           jsx("div", {
             style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" },
             children: [
