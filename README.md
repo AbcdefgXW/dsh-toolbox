@@ -75,6 +75,60 @@ npm install --omit=dev
 
 > `@deepseek-ai/*` 依赖为 dsh 运行时自带包，版本与 dsh 发布对齐；`js-yaml` 为插件自身依赖（配置编辑校验用）。
 
+## 卸载
+
+```bash
+# 方式一：dsh 命令
+dsh plugin --profile web remove dsh-toolbox-web
+
+# 方式二：手动
+# 1. 编辑 profile 的 package.json，从 dsh.profile.bundles 移除 "dsh-toolbox-web"
+# 2. 删除依赖与软链：rm -rf $DSH_HOME/profiles/web/node_modules/dsh-toolbox-web
+# 3. 删除插件数据（回收站/设置/索引）：rm -rf <插件目录>/state
+# 4. 重启 dsh web
+```
+
+> 卸载后 `dsh-msg-hub` 未安装时，定时心跳的 IM 渠道推送自动不可用（回退主工作区心跳），其余功能不受影响。
+
+## 崩溃恢复（vi 应急手册）
+
+dsh 启动失败（插件树加载报错）时，95% 是以下两类，用 vi 手工恢复即可，**无需重装**：
+
+**① `duplicate loader entry id: xxx`（最常见）**
+
+原因：插件被注册了两次——`package.json` 的 `dsh.profile.bundles` 与 `cordis.patch.yml` 的手动 `- insert:` 重复。
+
+```bash
+vi /home/dsh/profiles/web/cordis.patch.yml
+# 删除文件中形如以下的手动 insert 块（bundles 会自动挂载，不需要它）：
+#   - insert:
+#       - id: dsh-toolbox-web
+#         name: 'dsh-toolbox-web'
+# 保留 sandbox-policy / approval 等系统配置不动
+```
+
+**② `cannot resolve profile bundle "xxx"`（依赖缺失）**
+
+```bash
+vi /home/dsh/profiles/web/package.json
+# 确认 dsh.profile.bundles 里的包名与 dependencies 对应、node_modules 存在：
+ls -la /home/dsh/profiles/web/node_modules/ | grep dsh-
+# 缺失时恢复软链：
+ln -s /path/to/插件目录 /home/dsh/profiles/web/node_modules/插件名
+```
+
+**通用救急**：改动前插件会保留备份，恢复旧配置最快：
+
+```bash
+ls /home/dsh/profiles/web/cordis.patch.yml.bak-*   # patch 备份
+ls /home/dsh/profiles/web/package.json.bak-*       # package.json 备份
+cp 备份名 /home/dsh/profiles/web/cordis.patch.yml  # 覆盖回去
+```
+
+修改后**重启 dsh 容器/服务**生效；仍失败时查看日志：`docker logs deepseek-harness`（或 `journalctl -u dsh`）。
+
+> ⚠️ 本插件（及 dsh-msg-hub）自带 `cordis.patch.yml` 注册行，由 `dsh plugin add` 自动挂载，**切勿**在 profile 的 `cordis.patch.yml` 手动 insert（见「安装」警示）。
+
 ## 使用
 
 重启 `dsh web` 后，浏览器强刷（Ctrl+Shift+R）：

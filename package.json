@@ -39,5 +39,31 @@
     "type": "git",
     "url": "git+https://github.com/AbcdefgXW/dsh-toolbox-web.git"
   },
-  "homepage": "https://github.com/AbcdefgXW/dsh-toolbox-web"
+  "homepage": "https://github.com/AbcdefgXW/dsh-toolbox-web",
+  "files": [
+    "index.js",
+    "client.js",
+    "lib/",
+    "cordis.patch.yml",
+    "README.md",
+    "README.en.md",
+    "LICENSE",
+    "assets/"
+  ],
+  "keywords": [
+    "dsh",
+    "deepseek",
+    "plugin",
+    "toolbox",
+    "session",
+    "search",
+    "heartbeat",
+    "chat",
+    "回收站",
+    "工具箱",
+    "语义搜索"
+  ],
+  "bugs": {
+    "url": "https://github.com/AbcdefgXW/dsh-toolbox-web/issues"
+  }
 }
