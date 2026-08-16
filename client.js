@@ -2044,9 +2044,10 @@ window.__ModuleLoader__.load({
           msg ? jsx("div", { style: { fontSize: 12, marginBottom: 6, opacity: 0.85 }, children: msg }) : null,
           cacheLeft != null ? jsx("div", { style: { fontSize: 12, marginBottom: 6, opacity: 0.7 }, children: cacheLeft > 0 ? ("⏱ 缓存倒计时：" + cacheLeft + "s" + (semantic ? "（同词搜索免 API 调用）" : "（同词搜索免解压）")) : "⏱ 缓存已过期（下次同词搜索将重新计算）" }) : null,
           partialAsk ? jsx("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }, children: [
-            jsx("span", { style: { fontSize: 12, opacity: 0.85 }, children: "⚠️ 本段搜索已超过 30 秒，已扫 " + partialAsk.scanned + "/" + (partialAsk.total || "?") + " 个会话，目前共找到 " + partialAsk.count + " 条。" + (partialAsk.memoryMB > 1500 ? "（当前内存 " + partialAsk.memoryMB + "MB，持续搜索可能更慢）" : "") }),
+            jsx("span", { style: { fontSize: 12, opacity: 0.85 }, children: "⚠️ 本段搜索已超过 30 秒，已扫 " + partialAsk.scanned + "/" + (partialAsk.total || "?") + " 个会话，目前共找到 " + partialAsk.count + " 条。" + (partialAsk.memoryMB > 1500 ? "（当前内存 " + partialAsk.memoryMB + "MB，建议重启 DSH 服务释放内存；持续搜索可能更慢）" : "") }),
             jsx(P.Button, { size: "sm", variant: "primary", onClick: () => { setPartialAsk(null); doSearch(partialAsk.scanned); }, children: "⏩ 继续扫描（再 30 秒）" }),
             jsx(P.Button, { size: "sm", variant: "outline", onClick: () => setPartialAsk(null), children: "✕ 取消（保留当前结果）" }),
+            jsx(P.Button, { size: "sm", variant: "outline", onClick: () => { setKw(""); setHits([]); setMsg(""); setPartialAsk(null); setClicked({}); setCacheExpiresAt(0); }, children: "🧹 清除搜索（清空输入与结果）" }),
           ] }) : null,
           searching
             ? jsx("div", { style: { opacity: 0.6, padding: 12, fontSize: 13 }, children: "搜索中…（正在逐会话检索，会话多时可能超过 30 秒，可点「取消」停止；超时会自动返回部分结果）" })
