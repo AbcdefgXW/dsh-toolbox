@@ -337,8 +337,8 @@ class ToolsApi extends Service {
   }
 
   // ── 搜索 ──
-  async "search.query"(keyword, signal) {
-    const r = await searchSessions(keyword, signal);
+  async "search.query"(keyword, signal, forceFull) {
+    const r = await searchSessions(keyword, signal, 100, !!forceFull);
     return { ok: true, hits: r.hits, partial: r.partial, cache: r.cache };
   }
 
@@ -826,7 +826,7 @@ export function apply(ctx) {
       invocation("workspace.moveSessions", ["name", "targetCwd"]),
       invocation("workspace.delete", ["name", "sessionsAction"]),
       invocation("workspace.copy", ["name"]),
-      invocation("search.query", ["keyword"], true),
+      invocation("search.query", ["keyword", "forceFull"], true),
       invocation("search.embed", ["keyword"], true),
       invocation("search.embedBuild"),
       invocation("search.embedStatus"),
