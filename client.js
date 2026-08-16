@@ -38,8 +38,8 @@ window.__ModuleLoader__.load({
       ["workspace.moveSessions", ["name", "targetCwd"]],
       ["workspace.delete", ["name", "sessionsAction"]],
       ["workspace.copy", ["name"]],
-      ["search.query", ["keyword", "fromIndex", "dateFrom", "dateTo", "scope"]],
-      ["search.embed", ["keyword", "scope"]],
+      ["search.query", ["keyword", "fromIndex", "dateFrom", "dateTo"]],
+      ["search.embed", ["keyword"]],
       ["search.embedModels", []],
       ["search.embedTest", []],
       ["search.embedBuild", []],
@@ -1918,7 +1918,25 @@ window.__ModuleLoader__.load({
       const [dateFromStr, setDateFromStr] = React.useState("");
       const [dateToStr, setDateToStr] = React.useState("");
       const [semCfg, setSemCfg] = React.useState({ minScore: 80, topN: 20 }); // 语义阈值/条数（设置页配置）
-      const [scope, setScope] = React.useState("visible"); // 搜索范围：visible/archived/trash
+      const [scope, setScope] = React.useState("visible"); // 当前显示分组：visible/archived/trash（切换纯前端，不重搜）
+      const [groups, setGroups] = React.useState({ visible: [], archived: [], trash: [] }); // 一次搜索全部分组结果
+      React.useEffect(() => {
+        setHits(groups[scope] || []); // 切换标签/结果落地时同步当前显示
+      }, [groups, scope]);
+      const applyResults = (list) => {
+        // 按 bucket 分组合并（断点续扫跨段累积）
+        const g = { visible: [], archived: [], trash: [] };
+        for (const h of list || []) {
+          const b = h.bucket || "visible";
+          if (g[b]) g[b].push(h);
+        }
+        setGroups((prev) => ({
+          visible: mergeHits(prev.visible, g.visible),
+          archived: mergeHits(prev.archived, g.archived),
+          trash: mergeHits(prev.trash, g.trash),
+        }));
+      };
+      const groupCount = () => (groups.visible ? groups.visible.length + groups.archived.length + groups.trash.length : 0);
       React.useEffect(() => {
         if (tools && typeof tools["config.get"] === "function") {
           tools["config.get"]()
@@ -1995,14 +2013,13 @@ window.__ModuleLoader__.load({
         const seen = new Set((prev || []).map((h) => h.sessionId + ":" + (h.seq ?? h.line)));
         return [...(prev || []), ...(next || []).filter((h) => !seen.has(h.sessionId + ":" + (h.seq ?? h.line)))];
       };
-      const doSearch = (fromIndex, scopeOverride) => {
+      const doSearch = (fromIndex) => {
         const resume = Number(fromIndex) > 0; // 「继续搜索全部」= 从断点接着扫（每段仍 30 秒）
-        const useScope = scopeOverride || scope; // 切换范围按钮直接触发重搜（scope state 异步，用参数覆盖）
         const keyword = kw.trim();
         if (!keyword || searching) return;
         setClicked({}); // 新搜索清除点击标记
         setPartialAsk(null);
-        if (!resume) { setHits([]); setMsg(""); } // 新搜索清空旧结果，避免结果未出时误点
+        if (!resume) { setGroups({ visible: [], archived: [], trash: [] }); setMsg(""); } // 新搜索清空旧结果，避免结果未出时误点
         const ctrl = new AbortController();
         abortRef.current = ctrl;
         setSearching(true);
@@ -2010,19 +2027,19 @@ window.__ModuleLoader__.load({
         if (semantic) {
           // 语义搜索：确保索引 → embedding 查询 → 失败降级关键词
           const doEmbed = () => {
-            tools["search.embed"](keyword, useScope, ctrl.signal)
+            tools["search.embed"](keyword, ctrl.signal)
               .then((resp) => {
                 const r = unwrap(resp);
                 if (r && r.ok === false && r.fallback) {
                   // 降级：提示后走关键词搜索
                   setMsg("🧠 语义搜索不可用（" + ((r && r.error) || "未知") + "）→ 已降级为关键词搜索");
-                  tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), useScope, ctrl.signal)
+                  tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), ctrl.signal)
                     .then((resp2) => {
                       const r2 = unwrap(resp2);
                       applyCache(r2);
                       const arr = r2 && r2.hits ? r2.hits : [];
-                      setHits((prev) => mergeHits(prev, arr));
-                      if (r2 && r2.partial) setPartialAsk({ count: mergeHits(hits, arr).length, scanned: r2.scanned || 0, total: r2.total || 0, memoryMB: r2.memoryMB || 0 });
+                      applyResults(arr);
+                      if (r2 && r2.partial) setPartialAsk({ count: groupCount() + arr.length, scanned: r2.scanned || 0, total: r2.total || 0, memoryMB: r2.memoryMB || 0 });
                       else if (arr.length === 0 && !resume) setMsg("无命中");
                     })
                     .catch(() => {});
@@ -2030,8 +2047,8 @@ window.__ModuleLoader__.load({
                 }
                 if (r && r.ok && r.hits) {
                   applyCache(r);
-                  const arr = r.hits.map((h) => ({ sessionId: h.sessionId, seq: h.seq, score: h.score, semantic: true, snippet: h.snippet }));
-                  setHits(arr);
+                  const arr = r.hits.map((h) => ({ sessionId: h.sessionId, seq: h.seq, score: h.score, semantic: true, snippet: h.snippet, bucket: h.bucket }));
+                  applyResults(arr);
                   if (arr.length === 0) setMsg("语义无命中");
                   else setMsg("🧠 语义命中 " + arr.length + " 条（相关度阈值 " + semCfg.minScore + "% · 最多 " + (semCfg.topN > 0 ? semCfg.topN : "不限") + " 条 · 共索引 " + (r.total || "?") + " 条消息）");
                   return;
@@ -2052,13 +2069,13 @@ window.__ModuleLoader__.load({
                 const b = unwrap(resp2);
                 if (b && b.ok === false && b.fallback) {
                   setMsg("🧠 语义搜索不可用（" + ((b && b.error) || "索引构建失败") + "）→ 已降级为关键词搜索");
-                  tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), useScope, ctrl.signal)
+                  tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), ctrl.signal)
                     .then((resp3) => {
                       const r3 = unwrap(resp3);
                       applyCache(r3);
                       const arr3 = (r3 && r3.hits) || [];
-                      setHits((prev) => mergeHits(prev, arr3));
-                      if (r3 && r3.partial) setPartialAsk({ count: mergeHits(hits, arr3).length, scanned: r3.scanned || 0, total: r3.total || 0, memoryMB: r3.memoryMB || 0 });
+                      applyResults(arr3);
+                      if (r3 && r3.partial) setPartialAsk({ count: groupCount() + arr3.length, scanned: r3.scanned || 0, total: r3.total || 0, memoryMB: r3.memoryMB || 0 });
                       else if (arr3.length === 0 && !resume) setMsg("无命中");
                     })
                     .catch(() => {});
@@ -2073,13 +2090,13 @@ window.__ModuleLoader__.load({
             .catch((e) => { setMsg("索引状态失败：" + (e.message || String(e))); setSearching(false); abortRef.current = null; });
           return;
         }
-        tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), useScope, ctrl.signal)
+        tools["search.query"](keyword, resume ? fromIndex : 0, rangeFromMs(), rangeToMs(), ctrl.signal)
           .then((resp) => {
             const r = unwrap(resp);
             applyCache(r);
             const arr = r && r.hits ? r.hits : [];
-            setHits((prev) => mergeHits(prev, arr));
-            if (r && r.partial) setPartialAsk({ count: mergeHits(hits, arr).length, scanned: r.scanned || 0, total: r.total || 0, memoryMB: r.memoryMB || 0 });
+            applyResults(arr);
+            if (r && r.partial) setPartialAsk({ count: groupCount() + arr.length, scanned: r.scanned || 0, total: r.total || 0, memoryMB: r.memoryMB || 0 });
             else if (arr.length === 0 && !resume) setMsg("无命中");
           })
           .catch((e) => {
@@ -2161,7 +2178,7 @@ window.__ModuleLoader__.load({
             }),
             (kw.trim() || hits.length > 0) && jsx(P.Button, {
               size: "sm", variant: "outline",
-              onClick: () => { skipPersist.current = true; setKw(""); setHits([]); setMsg(""); setPartialAsk(null); setClicked({}); },
+              onClick: () => { skipPersist.current = true; setKw(""); setGroups({ visible: [], archived: [], trash: [] }); setHits([]); setMsg(""); setPartialAsk(null); setClicked({}); },
               title: "只清除当前显示的输入与结果（缓存/倒计时保留；误点后重开工具箱即恢复）",
               children: "🧹 清除搜索",
             }),
@@ -2170,9 +2187,9 @@ window.__ModuleLoader__.load({
             style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" },
             children: [
               jsx("span", { style: { fontSize: 12, opacity: 0.7 }, children: "🔎 范围：" }),
-              jsx(P.Button, { size: "sm", variant: scope === "visible" ? "primary" : "outline", onClick: () => { setScope("visible"); if (kw.trim() && !searching) doSearch(0, "visible"); }, title: "切换后自动重新搜索", children: "可见会话" }),
-              jsx(P.Button, { size: "sm", variant: scope === "archived" ? "primary" : "outline", onClick: () => { setScope("archived"); if (kw.trim() && !searching) doSearch(0, "archived"); }, title: "切换后自动重新搜索", children: "归档会话" }),
-              jsx(P.Button, { size: "sm", variant: scope === "trash" ? "primary" : "outline", onClick: () => { setScope("trash"); if (kw.trim() && !searching) doSearch(0, "trash"); }, title: "切换后自动重新搜索", children: "回收站会话" }),
+              jsx(P.Button, { size: "sm", variant: scope === "visible" ? "primary" : "outline", onClick: () => setScope("visible"), title: "切换显示分组（结果已一次搜出，即时切换）", children: "可见会话" }),
+              jsx(P.Button, { size: "sm", variant: scope === "archived" ? "primary" : "outline", onClick: () => setScope("archived"), title: "切换显示分组（结果已一次搜出，即时切换）", children: "归档会话" }),
+              jsx(P.Button, { size: "sm", variant: scope === "trash" ? "primary" : "outline", onClick: () => setScope("trash"), title: "切换显示分组（结果已一次搜出，即时切换）", children: "回收站会话" }),
             ],
           }),
           jsx("div", {
@@ -2205,7 +2222,7 @@ window.__ModuleLoader__.load({
             jsx("span", { style: { fontSize: 12, opacity: 0.85 }, children: "⚠️ 本段搜索已超过 30 秒，已扫 " + partialAsk.scanned + "/" + (partialAsk.total || "?") + " 个会话，目前共找到 " + partialAsk.count + " 条。" + (partialAsk.memoryMB > 1500 ? "（当前内存 " + partialAsk.memoryMB + "MB，建议重启 DSH 服务释放内存；持续搜索可能更慢）" : "") }),
             jsx(P.Button, { size: "sm", variant: "primary", onClick: () => { setPartialAsk(null); doSearch(partialAsk.scanned); }, children: "⏩ 继续扫描（再 30 秒）" }),
             jsx(P.Button, { size: "sm", variant: "outline", onClick: () => setPartialAsk(null), children: "✕ 取消（保留当前结果）" }),
-            jsx(P.Button, { size: "sm", variant: "outline", onClick: () => { skipPersist.current = true; setKw(""); setHits([]); setMsg(""); setPartialAsk(null); setClicked({}); }, children: "🧹 清除搜索（清空输入与结果）" }),
+            jsx(P.Button, { size: "sm", variant: "outline", onClick: () => { skipPersist.current = true; setKw(""); setGroups({ visible: [], archived: [], trash: [] }); setHits([]); setMsg(""); setPartialAsk(null); setClicked({}); }, children: "🧹 清除搜索（清空输入与结果）" }),
           ] }) : null,
           searching
             ? jsx("div", { style: { opacity: 0.6, padding: 12, fontSize: 13 }, children: [jsx("span", { className: "dsd-spin" }), "搜索中…（正在逐会话检索，会话多时可能超过 30 秒，可点「取消」停止；超时会询问继续/取消）"] })
