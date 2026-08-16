@@ -621,7 +621,9 @@ window.__ModuleLoader__.load({
      * props.list = SessionListState（root scope 注入的 useSessions 快照，含 byId/current）。
      */
     function ToolboxPanel(props) {
-      const [tab, setTab] = React.useState("sessions");
+      const [tab, setTab] = React.useState(() => {
+        try { return window.localStorage.getItem("dsh-toolbox-tab") || "sessions"; } catch { return "sessions"; }
+      });
       const [sessions, setSessions] = React.useState([]);
       const [trash, setTrash] = React.useState([]);
       const [subdirs, setSubdirs] = React.useState([]);
@@ -696,7 +698,11 @@ window.__ModuleLoader__.load({
           if (t === "config") return cfg.configEditor !== false;
           return true; // trash/archived 常显
         });
-        if (!avail.includes(tab)) setTab(avail[0] || "trash");
+        if (!avail.includes(tab)) {
+          const t = avail[0] || "trash";
+          try { window.localStorage.setItem("dsh-toolbox-tab", t); } catch {}
+          setTab(t);
+        }
       }, [tab, cfg]);
 
       React.useEffect(() => {
@@ -963,7 +969,7 @@ window.__ModuleLoader__.load({
       const tabBtn = (id, label, icon) => jsx(P.Button, {
         size: "sm",
         variant: tab === id ? "primary" : "outline",
-        onClick: () => setTab(id),
+        onClick: () => { try { window.localStorage.setItem("dsh-toolbox-tab", id); } catch {} setTab(id); },
         style: { marginRight: 6, marginBottom: 4, fontWeight: tab === id ? 700 : 400 },
         children: icon + " " + label,
       });
@@ -1989,7 +1995,7 @@ window.__ModuleLoader__.load({
           onClick: (e) => {
             e.preventDefault(); e.stopPropagation();
             setClicked({ ...clicked, [hkey]: true });
-            if (openSession) openSession(h.sessionId, kw, h.seq);
+            if (openSession) openSession(h.sessionId, kw, h.seq, !!h.semantic);
           },
           title: "点击打开会话并定位",
           children: [
@@ -2157,7 +2163,7 @@ window.__ModuleLoader__.load({
           }
         } catch (e) { console.warn("dsh-toolbox: 折叠设置初始化失败", e); }
         // 打开会话（官方 sessions 服务）；带 keyword/seq 时定位到关键词所在消息
-        const openSession = (sessionId, keyword, seq) => {
+        const openSession = (sessionId, keyword, seq, semantic) => {
           try {
             const svc = ctx.get("sessions");
             if (svc && typeof svc.open === "function") svc.open(sessionId);
@@ -2175,27 +2181,58 @@ window.__ModuleLoader__.load({
             el.style.background = "rgba(245,197,24,0.35)";
             setTimeout(() => { el.style.background = prev; }, 2500);
           };
+          const scrollContainer = () => {
+            let best = null, bestH = 0;
+            for (const s of document.querySelectorAll("main, [class*='conversation'], [class*='scroll'], [class*='message']")) {
+              if (s.scrollHeight > bestH) { best = s; bestH = s.scrollHeight; }
+            }
+            return best;
+          };
+          const findTextEls = (needle) => {
+            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+            const matches = [];
+            let node;
+            while ((node = walker.nextNode())) {
+              const t = node.textContent || "";
+              if (needle && t.includes(needle)) matches.push(node.parentElement);
+            }
+            return matches;
+          };
           const tryLocate = () => {
             // 1) 官方消息 DOM 若有 data-seq 属性则直接命中
             if (seq != null) {
               const el = document.querySelector('[data-seq="' + seq + '"]');
               if (el) { flash(el); return; }
             }
-            // 2) 滚动会话区到底部（触发虚拟滚动渲染最新消息）
-            let best = null, bestH = 0;
-            for (const s of document.querySelectorAll("main, [class*='conversation'], [class*='scroll'], [class*='message']")) {
-              if (s.scrollHeight > bestH) { best = s; bestH = s.scrollHeight; }
+            // 2) 语义命中：搜索词是语义描述，文本不一定匹配——用命中消息的真实内容定位
+            if (seq != null && semantic) {
+              tools["messages.list"](sessionId, 500)
+                .then((resp) => {
+                  const r = unwrap(resp);
+                  const msgs = (r && r.messages) || [];
+                  const m = msgs.find((x) => x.seq === seq);
+                  const needle = m && m.content ? String(m.content).slice(0, 60) : "";
+                  if (!needle) return;
+                  // 逐轮滚动探测：底部（最新）→ 顶部（历史）→ 中部，每轮等虚拟滚动渲染
+                  const probe = (round) => {
+                    const ms = findTextEls(needle);
+                    if (ms.length > 0) { flash(ms[0]); return; }
+                    if (round >= 3) return;
+                    const box = scrollContainer();
+                    if (!box) return;
+                    box.scrollTop = round === 0 ? box.scrollHeight : (round === 1 ? 0 : box.scrollHeight / 2);
+                    setTimeout(() => probe(round + 1), 900);
+                  };
+                  probe(0);
+                })
+                .catch(() => {});
+              return;
             }
-            if (best) best.scrollTop = best.scrollHeight;
-            // 3) 等渲染后文本查找（取最后一个匹配，靠近最新）
+            // 3) 关键词路径：滚动到底部触发渲染，再按搜索词文本查找（取最后一个匹配，靠近最新）
+            const box = scrollContainer();
+            if (box) box.scrollTop = box.scrollHeight;
             setTimeout(() => {
-              const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-              const matches = [];
-              let node;
-              while ((node = walker.nextNode())) {
-                const t = node.textContent || "";
-                if (t.includes(kwText)) matches.push(node.parentElement);
-              }
+              const matches = findTextEls(kwText);
               if (matches.length > 0) flash(matches[matches.length - 1]);
             }, 500);
           };
