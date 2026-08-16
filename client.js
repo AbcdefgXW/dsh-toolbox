@@ -1889,6 +1889,7 @@ window.__ModuleLoader__.load({
       const [searching, setSearching] = React.useState(searchPersist.searching);
       const [msg, setMsg] = React.useState(searchPersist.msg);
       const abortRef = React.useRef(null);
+      const skipPersist = React.useRef(false); // 「清除搜索」只清当前显示，跳过持久层同步（重开面板恢复）
       // 已点击的记录标记（本轮搜索内生效；新搜索/手动清除时重置）
       const [clicked, setClicked] = React.useState({});
       const [semantic, setSemantic] = React.useState(false); // 语义搜索模式
@@ -1958,6 +1959,7 @@ window.__ModuleLoader__.load({
       };
 
       React.useEffect(() => {
+        if (skipPersist.current) { skipPersist.current = false; return; } // 清除搜索：保留持久层，重开面板恢复
         searchPersist.kw = kw;
         searchPersist.hits = hits;
         searchPersist.searching = searching;
@@ -2132,8 +2134,8 @@ window.__ModuleLoader__.load({
             }),
             (kw.trim() || hits.length > 0) && jsx(P.Button, {
               size: "sm", variant: "outline",
-              onClick: () => { setKw(""); setHits([]); setMsg(""); setPartialAsk(null); setClicked({}); setCacheExpiresAt(0); },
-              title: "清空输入框与搜索结果",
+              onClick: () => { skipPersist.current = true; setKw(""); setHits([]); setMsg(""); setPartialAsk(null); setClicked({}); },
+              title: "只清除当前显示的输入与结果（缓存/倒计时保留；误点后重开工具箱即恢复）",
               children: "🧹 清除搜索",
             }),
           ] }),
@@ -2167,7 +2169,7 @@ window.__ModuleLoader__.load({
             jsx("span", { style: { fontSize: 12, opacity: 0.85 }, children: "⚠️ 本段搜索已超过 30 秒，已扫 " + partialAsk.scanned + "/" + (partialAsk.total || "?") + " 个会话，目前共找到 " + partialAsk.count + " 条。" + (partialAsk.memoryMB > 1500 ? "（当前内存 " + partialAsk.memoryMB + "MB，建议重启 DSH 服务释放内存；持续搜索可能更慢）" : "") }),
             jsx(P.Button, { size: "sm", variant: "primary", onClick: () => { setPartialAsk(null); doSearch(partialAsk.scanned); }, children: "⏩ 继续扫描（再 30 秒）" }),
             jsx(P.Button, { size: "sm", variant: "outline", onClick: () => setPartialAsk(null), children: "✕ 取消（保留当前结果）" }),
-            jsx(P.Button, { size: "sm", variant: "outline", onClick: () => { setKw(""); setHits([]); setMsg(""); setPartialAsk(null); setClicked({}); setCacheExpiresAt(0); }, children: "🧹 清除搜索（清空输入与结果）" }),
+            jsx(P.Button, { size: "sm", variant: "outline", onClick: () => { skipPersist.current = true; setKw(""); setHits([]); setMsg(""); setPartialAsk(null); setClicked({}); }, children: "🧹 清除搜索（清空输入与结果）" }),
           ] }) : null,
           searching
             ? jsx("div", { style: { opacity: 0.6, padding: 12, fontSize: 13 }, children: "搜索中…（正在逐会话检索，会话多时可能超过 30 秒，可点「取消」停止；超时会自动返回部分结果）" })
