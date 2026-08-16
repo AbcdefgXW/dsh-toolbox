@@ -68,6 +68,7 @@ window.__ModuleLoader__.load({
       ["trash.purge", ["entryDir"]],
       ["config.get", []],
       ["config.set", ["key", "value"]],
+      ["config.reset", []],
       ["tools.gc", []],
       ["tools.debug", []],
     ].map(([method, params]) => ({
@@ -659,6 +660,23 @@ window.__ModuleLoader__.load({
             ],
           }),
           jsx("div", { style: { fontSize: 12, opacity: 0.6, marginTop: 8 }, children: "回收站自动清除：启动时 + 每 6 小时扫描一次。" }),
+          jsx("div", {
+            style: { display: "flex", alignItems: "center", justifyContent: "center", padding: "12px 0 4px" },
+            children: [
+              jsx(P.Button, {
+                size: "sm", variant: "outline",
+                style: { color: "#e5534b", borderColor: "rgba(229,83,75,0.5)", fontWeight: 600 },
+                onClick: () => {
+                  if (!window.confirm("确定将本页所有设置恢复默认？\n\n将清除：语义搜索 Key、时间范围、心跳配置、各项开关等全部设置，且需重新配置 Embedding Key。")) return;
+                  tools["config.reset"]()
+                    .then((resp) => { const d = unwrap(resp); if (d) setDoc(d); setMsg("✅ 已恢复默认设置"); })
+                    .catch((e) => setMsg("恢复失败：" + (e && e.message ? e.message : String(e))));
+                },
+                children: "🔄 本页设置恢复默认",
+              }),
+            ],
+          }),
+
         ],
       });
     }

@@ -52,7 +52,7 @@ import {
   emptyTrash,
   startTrashWatcher,
 } from "./lib/trash.js";
-import { getConfig, setConfigField } from "./lib/config.js";
+import { getConfig, setConfigField, resetConfig } from "./lib/config.js";
 import { listPresets, readPresetFile, savePresetFile } from "./lib/presets.js";
 import { decompressFirstFrame } from "./lib/zstd.js";
 import { listTags, setSessionTags, removeTag, renameTag } from "./lib/tags.js";
@@ -455,6 +455,11 @@ class ToolsApi extends Service {
     return setConfigField(key, value);
   }
 
+  /** 全部设置恢复默认（设置页「恢复默认」按钮用）。 */
+  async "config.reset"() {
+    return resetConfig();
+  }
+
   // ── Agent 预设编辑 ──
   async "presets.list"() {
     return listPresets();
@@ -850,6 +855,7 @@ export function apply(ctx) {
       invocation("officialSearch.set", ["enabled"]),
       invocation("config.get"),
       invocation("config.set", ["key", "value"]),
+      invocation("config.reset"),
       invocation("presets.list"),
       invocation("presets.read", ["presetId", "fileName"]),
       invocation("presets.save", ["presetId", "fileName", "content"]),
