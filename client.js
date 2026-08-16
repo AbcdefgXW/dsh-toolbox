@@ -1980,7 +1980,7 @@ window.__ModuleLoader__.load({
           ] }),
           msg ? jsx("div", { style: { fontSize: 12, marginBottom: 6, opacity: 0.85 }, children: msg }) : null,
           searching
-            ? jsx("div", { style: { opacity: 0.6, padding: 12, fontSize: 13 }, children: "搜索中…（正在逐会话检索，会话多时可能超过 10 秒，可点「取消」停止；超时会自动返回部分结果）" })
+            ? jsx("div", { style: { opacity: 0.6, padding: 12, fontSize: 13 }, children: "搜索中…（正在逐会话检索，会话多时可能超过 30 秒，可点「取消」停止；超时会自动返回部分结果）" })
             : hits.map(row),
         ],
       });
