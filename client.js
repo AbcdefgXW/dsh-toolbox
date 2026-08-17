@@ -376,6 +376,7 @@ window.__ModuleLoader__.load({
       const baseOf = (p) => String(p || "").replace(/[/\\]+$/, "").split(/[/\\]/).pop() || "未分组";
       const groups = {};
       for (const s of sessList) {
+        if (s.parentSession) continue; // 子代理会话不在下拉中（独立 tab 管理）
         const g = baseOf(s.cwd);
         (groups[g] ||= []).push(s);
       }
@@ -464,7 +465,7 @@ window.__ModuleLoader__.load({
               }),
             ],
           }),
-          jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "间隔心跳注入到哪：主工作区 = 内部巡检；选 📱 微信/QQ/飞书 = 结果定时推送到手机（需安装 dsh-msg-hub：dsh plugin --profile web add dsh-msg-hub）；指定会话 = 只注入该会话。" }),
+          jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "间隔心跳注入到哪：主工作区 = 内部巡检；选 📱 微信/QQ/飞书 = 结果定时推送到手机（需安装 dsh-msg-hub插件，命令：dsh plugin --profile web add dsh-msg-hub）；指定会话 = 只注入该会话。" }),
           jsx("div", {
             style: { display: "flex", alignItems: "center", gap: 8, padding: "8px 0", flexWrap: "wrap" },
             children: [
@@ -514,7 +515,7 @@ window.__ModuleLoader__.load({
               }),
             ],
           }),
-          jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "定点定时注入到哪：与间隔心跳可不同（如：间隔心跳主工作区巡检 + 每天 09:00 推送微信晨报）。" }),
+          jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "定点定时注入到哪：与间隔心跳可不同（如：间隔心跳主工作区巡检 + 每天 09:00 推送微信晨报）。选 📱 微信/QQ/飞书 = 结果定时推送到手机（需安装 dsh-msg-hub插件，命令：dsh plugin --profile web add dsh-msg-hub）。" }),
           jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
             children: [
