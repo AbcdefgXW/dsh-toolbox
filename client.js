@@ -69,6 +69,8 @@ window.__ModuleLoader__.load({
       ["config.get", []],
       ["config.set", ["key", "value"]],
       ["config.reset", []],
+      ["channels.configGet", ["channel", "key"]],
+      ["channels.configSet", ["channel", "key", "value"]],
       ["tools.gc", []],
       ["tools.debug", []],
     ].map(([method, params]) => ({
@@ -204,6 +206,19 @@ window.__ModuleLoader__.load({
         } catch (e) {
           console.error("dsh-toolbox: config.set 同步抛错(条数)", e);
         }
+      };
+      const [wxSegment, setWxSegment] = React.useState(1200);
+      React.useEffect(() => {
+        if (tools && typeof tools["channels.configGet"] === "function") {
+          tools["channels.configGet"]("weixin", "segmentLimit")
+            .then((resp) => { const r = unwrap(resp); if (r && r.ok) setWxSegment(Number(r.value) || 1200); })
+            .catch(() => {});
+        }
+      }, []);
+      const setWxSegmentField = (value) => {
+        const v = Math.max(1, Math.min(Number(value) || 1200, 5000));
+        setWxSegment(v);
+        try { tools["channels.configSet"]("weixin", "segmentLimit", v).catch(() => {}); } catch {}
       };
       const embedBaseUrl = doc?.embedBaseUrl ?? "https://api.siliconflow.cn/v1";
       const embedApiKey = doc?.embedApiKey ?? "";
@@ -517,6 +532,22 @@ window.__ModuleLoader__.load({
             placeholder: "留空使用默认提示语",
             rows: 2,
             style: { width: "100%", boxSizing: "border-box", fontSize: 12, padding: "6px 8px", borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", background: "rgba(0,0,0,0.25)", color: "inherit", outline: "none", marginBottom: 8, resize: "vertical" },
+          }),
+
+          jsx("div", { style: { borderTop: "1px solid rgba(128,128,128,0.2)", marginTop: 12, paddingTop: 10 } }),
+          jsx("div", {
+            style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
+            children: [
+              jsx("label", { style: { flex: 1 }, children: "微信消息分段上限（字符/条；实测上限约 1300，默认 1200 留余量；改动即时生效）" }),
+              jsx("input", {
+                type: "number",
+                min: 1,
+                max: 5000,
+                value: wxSegment,
+                onChange: (e) => setWxSegmentField(e.target.value),
+                style: { width: 72 },
+              }),
+            ],
           }),
 
           // ── 分区二：功能开关（含折叠） ──

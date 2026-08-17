@@ -505,6 +505,27 @@ class ToolsApi extends Service {
     return resetConfig();
   }
 
+  // ── 渠道配置转发（dsh-msg-hub 未安装时返回提示） ──
+  async "channels.configGet"(channel, key) {
+    try {
+      const api = this.ctx.get("dsh-channels-push");
+      if (!api || typeof api.getChannelConfig !== "function") return { ok: false, error: "dsh-msg-hub 未安装或未加载" };
+      return api.getChannelConfig(channel, key);
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  }
+
+  async "channels.configSet"(channel, key, value) {
+    try {
+      const api = this.ctx.get("dsh-channels-push");
+      if (!api || typeof api.setChannelConfig !== "function") return { ok: false, error: "dsh-msg-hub 未安装或未加载" };
+      return api.setChannelConfig(channel, key, value);
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  }
+
   // ── Agent 预设编辑 ──
   async "presets.list"() {
     return listPresets();
@@ -901,6 +922,8 @@ export function apply(ctx) {
       invocation("config.get"),
       invocation("config.set", ["key", "value"]),
       invocation("config.reset"),
+      invocation("channels.configGet", ["channel", "key"]),
+      invocation("channels.configSet", ["channel", "key", "value"]),
       invocation("presets.list"),
       invocation("presets.read", ["presetId", "fileName"]),
       invocation("presets.save", ["presetId", "fileName", "content"]),
