@@ -1,6 +1,4 @@
 # dsh-toolbox-web 插件层（随 npm 发布）
-# lanBind（局域网绑定）为本地自用方案，不随插件分发；
-# 需要局域网访问请自行在部署环境层实现（如宿主端口转发/反代）。
 - insert:
     - id: dsh-toolbox-web
       name: dsh-toolbox-web
