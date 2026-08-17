@@ -1,3 +1,10 @@
+# dsh-toolbox-web 插件层
+# lanBind: true = 启动后把 dsh web 从 127.0.0.1 重绑到 0.0.0.0（局域网可访问）。
+# 注意：必须同时在 compose 的 dsh 启动命令里加 --trusted-host <局域网IP>（如 192.168.0.8），
+# 否则 /api 围栏会拦下局域网请求（这是 dsh 的安全设计，显式信任才算数）。
+# 不需要局域网访问时把 lanBind 改回 false 即可。
 - insert:
     - id: dsh-toolbox-web
       name: dsh-toolbox-web
+      config:
+        lanBind: true

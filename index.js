@@ -119,7 +119,7 @@ function parseChannelTarget(id) {
 
 export const name = "dsh-toolbox-web";
 
-export const inject = ["settings", "typert", "agents"];
+export const inject = ["settings", "typert", "agents", "webServer"];
 
 /** 端点实现：一个 Service，方法名 = typert 端点 method。 */
 class ToolsApi extends Service {
@@ -860,8 +860,38 @@ function logErr(where, err) {
   } catch {}
 }
 
-export function apply(ctx) {
+export function apply(ctx, config) {
   const log = ctx.logger;
+
+  // ── LAN 绑定（设置页「局域网访问」开关控制，默认开；patch.yml 的 config.lanBind 作兜底）──
+  // 背景：dsh 上游刻意拒绝 --host 0.0.0.0（防局域网任意设备驱动 agent）。
+  // 本功能不改上游：拿到已监听的 webServer，close 后在同一 server 上重绑 0.0.0.0，
+  // 所有路由/升级/SSE 原样保留。局域网设备访问特权 API（settings/credentials）由
+  // dsh-client-connection 的 trustedHosts 配置放行（见 profile cordis.patch.yml）。
+  // 安全提示：0.0.0.0 = 局域网任何设备都能驱动 agent（含 shell），建议在群晖防火墙
+  // 限制 3080 只允许常用设备 IP。开关改动需重启 dsh 生效。
+  const lanBindOn = getConfig().lanBind !== false && config?.lanBind !== false;
+  if (lanBindOn) {
+    (async () => {
+      try {
+        const webServer = ctx.get("webServer");
+        const server = webServer?.server;
+        if (!server) throw new Error("webServer.server 不可用");
+        const port = webServer.port ?? 3080;
+        if (server.address() === null) {
+          await new Promise((resolve, reject) => {
+            const t = setTimeout(() => reject(new Error("等待 webServer 监听超时")), 15000);
+            server.once("listening", () => { clearTimeout(t); resolve(); });
+          });
+        }
+        await new Promise((resolve) => server.close(resolve));
+        server.listen(port, "0.0.0.0");
+        log.info(`dsh-toolbox-web: LAN 绑定已开启 — 监听 0.0.0.0:${port}`);
+      } catch (err) {
+        log.warn(`dsh-toolbox-web: LAN 绑定失败（不影响其余功能）: ${String(err)}`);
+      }
+    })();
+  }
 
   // ── 0. 启动探针（排查 client 加载） ──
   try {

@@ -92,6 +92,7 @@ window.__ModuleLoader__.load({
     /** 设置开关定义（与后端 settings.js 一致）。 */
     const SWITCHES = [
       { key: "sessionManage", label: "会话管理", desc: "会话列表操作：删除 / 移动 / 复制 / 重设工作区根（默认：开）" },
+      { key: "lanBind", label: "局域网访问（LAN 绑定）", desc: "把 dsh web 重绑到 0.0.0.0，局域网设备可访问（默认：开）。⚠️ 需重启生效；局域网设备可驱动 agent（含 shell），建议防火墙限制 3080；非本机访问特权 API 需在 profile cordis.patch.yml 配置 trustedHosts" },
       { key: "dialogueManage", label: "对话管理", desc: "⚠️ 需重启生效。会话内消息：截断到此 / 编辑消息（改内容并删除后续回复），操作后也需重启完整生效（默认：关）", default: false },
       { key: "workspaceManage", label: "子目录管理", desc: "工作区子目录：新增 / 重命名 / 删除 / 复制 / 移动（默认：开）" },
       { key: "presetEdit", label: "预设编辑", desc: "设置 → Agent 预设 → 自定义 agent 加「编辑」按钮（默认：开）" },
