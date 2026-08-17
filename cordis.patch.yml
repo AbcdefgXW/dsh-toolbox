@@ -1,11 +1,6 @@
 # dsh-toolbox-web 插件层（随 npm 发布）
-# lanBind（局域网绑定）为实验性功能：发布默认关（官方安全模型 loopback）。
-# 需要局域网访问时：设置页 🔧 功能开关 → 局域网访问 打开（需重启），
-# 或在本文件把 config.lanBind 改为 true（patch 兜底）。
-# ⚠️ 非本机访问特权 API（设置/凭证）依赖当前 dsh 版本的 trustedHosts 生效，
-#    若 403 属官方安全拒绝；0.0.0.0 = 局域网任何设备可驱动 agent，建议防火墙限制端口。
+# lanBind（局域网绑定）为本地自用方案，不随插件分发；
+# 需要局域网访问请自行在部署环境层实现（如宿主端口转发/反代）。
 - insert:
     - id: dsh-toolbox-web
       name: dsh-toolbox-web
-      config:
-        lanBind: false
