@@ -464,7 +464,7 @@ window.__ModuleLoader__.load({
               }),
             ],
           }),
-          jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "间隔心跳注入到哪：主工作区 = 内部巡检；选 📱 微信/QQ/飞书 = 结果定时推送到手机；指定会话 = 只注入该会话。" }),
+          jsx("div", { style: { fontSize: 12, opacity: 0.6, marginBottom: 8 }, children: "间隔心跳注入到哪：主工作区 = 内部巡检；选 📱 微信/QQ/飞书 = 结果定时推送到手机（需安装 dsh-msg-hub：dsh plugin --profile web add dsh-msg-hub）；指定会话 = 只注入该会话。" }),
           jsx("div", {
             style: { display: "flex", alignItems: "center", gap: 8, padding: "8px 0", flexWrap: "wrap" },
             children: [
@@ -538,7 +538,10 @@ window.__ModuleLoader__.load({
           jsx("div", {
             style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 },
             children: [
-              jsx("label", { style: { flex: 1 }, children: "微信消息分段上限（字符/条；实测上限约 1300，默认 1200 留余量；改动即时生效）" }),
+              jsx("div", { style: { flex: 1, minWidth: 0 }, children: [
+                jsx("div", { style: { fontWeight: 500 }, children: "微信消息分段上限" }),
+                jsx("div", { style: { fontSize: 12, opacity: 0.65, marginTop: 2 }, children: "字符/条；实测上限约 1300，默认 1200 留余量；改动即时生效。使用聊天软件机器人（微信/QQ/飞书）推送需安装 dsh-msg-hub" }),
+              ] }),
               jsx("input", {
                 type: "number",
                 min: 1,
