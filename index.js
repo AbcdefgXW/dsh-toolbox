@@ -870,7 +870,10 @@ export function apply(ctx, config) {
   // dsh-client-connection 的 trustedHosts 配置放行（见 profile cordis.patch.yml）。
   // 安全提示：0.0.0.0 = 局域网任何设备都能驱动 agent（含 shell），建议在群晖防火墙
   // 限制 3080 只允许常用设备 IP。开关改动需重启 dsh 生效。
-  const lanBindOn = getConfig().lanBind !== false && config?.lanBind !== false;
+  // 发布默认关（官方安全模型 loopback）；本机 patch.yml 配 lanBind: true 或设置页开关均开启。
+  // 注意：特权 API（settings/credentials）对非本机访问需 dsh-client-connection 的 trustedHosts
+  // 实际生效（当前官方版本配置未生效时表现为 403 属正常安全拒绝，不影响其他功能）。
+  const lanBindOn = config?.lanBind === true || getConfig().lanBind === true;
   if (lanBindOn) {
     (async () => {
       try {
