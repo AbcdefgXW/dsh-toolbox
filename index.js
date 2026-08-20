@@ -225,6 +225,34 @@ class ToolsApi extends Service {
     return { ok: true, needRestart: !archived, archived };
   }
 
+  /**
+   * 清除所有空会话：官方轮数（turns）为 0 且非子代理会话。
+   * 逐个复用 sessions.delete（移入回收站 + 官方归档隐藏）。
+   */
+  async "sessions.clearEmpty"() {
+    const all = await listAllSessions();
+    const empty = [];
+    for (const s of all) {
+      // 子代理会话跟随父会话管理，不作为独立条目清除
+      if (s.header?.parentSession) continue;
+      const stats = readSessionStatsLite(s.path, s.sessionId);
+      if (stats.turns === 0) empty.push(s);
+    }
+    const items = [];
+    let done = 0, failed = 0;
+    for (const s of empty) {
+      try {
+        const r = await this["sessions.delete"](s.sessionId);
+        if (r && r.ok === false) { failed += 1; items.push({ sessionId: s.sessionId, ok: false, error: r.error }); }
+        else { done += 1; items.push({ sessionId: s.sessionId, ok: true }); }
+      } catch (err) {
+        failed += 1;
+        items.push({ sessionId: s.sessionId, ok: false, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    return { found: empty.length, removed: done, failed, items };
+  }
+
   async "sessions.copy"(sessionId) {
     const all = await listAllSessions();
     const s = all.find((x) => x.sessionId === sessionId);
@@ -901,6 +929,7 @@ export function apply(ctx, config) {
       invocation("sessions.list"),
       invocation("sessions.header", ["sessionId"]),
       invocation("sessions.delete", ["sessionId"]),
+      invocation("sessions.clearEmpty"),
       invocation("sessions.copy", ["sessionId"]),
       invocation("sessions.resetCwd", ["sessionId"]),
       invocation("sessions.move", ["targetCwd", "sessionId"]),

@@ -28,6 +28,7 @@ window.__ModuleLoader__.load({
       ["sessions.list", []],
       ["sessions.header", ["sessionId"]],
       ["sessions.delete", ["sessionId"]],
+      ["sessions.clearEmpty", []],
       ["sessions.copy", ["sessionId"]],
       ["sessions.resetCwd", ["sessionId"]],
       ["sessions.move", ["targetCwd", "sessionId"]],
@@ -861,6 +862,8 @@ window.__ModuleLoader__.load({
       // 主会话列表（子代理会话在「子代理」tab 单独管理）
       const mainSessions = sessions.filter((s) => !s.parentSession);
       const subAgentSessions = sessions.filter((s) => s.parentSession);
+      // 空会话数（turns === 0 且非子代理；与 emptySessionLabel 口径一致）
+      const emptySessionCount = mainSessions.filter((s) => typeof s.turns === "number" && s.turns === 0).length;
       const registeredPaths = new Set((wsList || []).map((w) => w.path));
       const byRoot = {};
       for (const s of mainSessions) {
@@ -1076,7 +1079,7 @@ window.__ModuleLoader__.load({
       const tabBtn = (id, label, icon) => jsx(P.Button, {
         size: "sm",
         variant: tab === id ? "primary" : "outline",
-        onClick: () => { try { window.localStorage.setItem("dsh-toolbox-tab", id); } catch {} setTab(id); },
+        onClick: () => { setMsg(""); try { window.localStorage.setItem("dsh-toolbox-tab", id); } catch {} setTab(id); },
         style: { marginRight: 6, marginBottom: 4, fontWeight: tab === id ? 700 : 400 },
         children: icon + " " + label,
       });
@@ -1140,7 +1143,28 @@ window.__ModuleLoader__.load({
           ] }),
           msg ? jsx("div", { style: { fontSize: 12, marginBottom: 6, opacity: 0.85 }, children: msg }) : null,
           tab === "sessions" && jsx("div", {
-            children: mainSessions.length === 0
+            children: [
+              // 顶部操作区：清除空会话（与回收站「清空回收站」同位；空会话 = turns 0 且非子代理）
+              jsx("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }, children: [
+                jsx(P.Button, {
+                  size: "sm",
+                  variant: "outline",
+                  disabled: busy || emptySessionCount === 0,
+                  onClick: () => {
+                    if (!confirm("清除 " + emptySessionCount + " 个空会话？全部移入回收站，左侧立即隐藏")) return;
+                    run("清除空会话", () => tools["sessions.clearEmpty"]()).then((r) => {
+                      const rr = unwrap(r);
+                      // RPC 失败（rr 为空）或服务端报错时，run 已设置错误提示，这里不再覆盖
+                      if (!rr || rr.ok === false) return;
+                      setMsg("已清除 " + rr.removed + " 个空会话" + (rr.failed ? "，" + rr.failed + " 个失败" : ""));
+                      refreshSessions();
+                    });
+                  },
+                  children: "清除空会话" + (emptySessionCount > 0 ? " (" + emptySessionCount + ")" : ""),
+                }),
+                jsx("div", { style: { fontSize: 11, opacity: 0.6 }, children: "空会话 = 0 轮对话；删除进回收站可恢复" }),
+              ]}),
+              mainSessions.length === 0
               ? jsx("div", { style: { opacity: 0.5, padding: 8, fontSize: 13 }, children: "没有会话" })
               : rootGroups.map((root) => {
                   // 组内二级：按标签分小节
@@ -1197,6 +1221,7 @@ window.__ModuleLoader__.load({
                     ],
                   });
                 }),
+              ],
           }),
           tab === "trash" && jsx("div", {
             children: [
