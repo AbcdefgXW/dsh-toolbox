@@ -718,6 +718,19 @@ window.__ModuleLoader__.load({
             const cnt = k ? Number(k.count) || 3 : 3;
             const inh = chanCfg ? Number(chanCfg.inheritRecentCount) || 10 : 10;
             const swp = chanCfg ? Number(chanCfg.sweepIntervalMinutes) || 0 : 0;
+            // 本地先同步更新（受控输入不弹回），再异步保存到服务端
+            const applyLocal = (patch) => {
+              setChanCfg((prev) => {
+                const base = prev && typeof prev === "object" ? prev : { keepAliveSessions: { enabled: true, count: 3 }, inheritRecentCount: 10, sweepIntervalMinutes: 0 };
+                return {
+                  ...base,
+                  keepAliveSessions: { ...(base.keepAliveSessions || {}), ...(patch.keepAliveSessions || {}) },
+                  ...(patch.inheritRecentCount !== undefined ? { inheritRecentCount: patch.inheritRecentCount } : {}),
+                  ...(patch.sweepIntervalMinutes !== undefined ? { sweepIntervalMinutes: patch.sweepIntervalMinutes } : {}),
+                };
+              });
+              setChan(patch);
+            };
             const setChan = (patch) => {
               if (!tools || typeof tools["channels.cfgSet"] !== "function") return;
               tools["channels.cfgSet"](patch)
@@ -729,7 +742,7 @@ window.__ModuleLoader__.load({
                 jsx("label", { style: { flex: 1 }, children: "渠道会话常驻（保留最近 N 个活跃会话，其余随用随放）" }),
                 jsx("select", {
                   value: en ? "on" : "off",
-                  onChange: (e) => setChan({ keepAliveSessions: { enabled: e.target.value === "on", count: cnt } }),
+                  onChange: (e) => applyLocal({ keepAliveSessions: { enabled: e.target.value === "on", count: cnt } }),
                   style: { width: 88 },
                   children: [jsx("option", { value: "on", children: "开启" }), jsx("option", { value: "off", children: "关闭" })],
                 }),
@@ -738,7 +751,7 @@ window.__ModuleLoader__.load({
                 jsx("label", { style: { flex: 1 }, children: "常驻个数（1~5）" }),
                 jsx("input", {
                   type: "number", min: 1, max: 5, value: cnt,
-                  onChange: (e) => { const v = Math.min(5, Math.max(1, Math.floor(Number(e.target.value) || 1))); setChan({ keepAliveSessions: { enabled: en, count: v } }); },
+                  onChange: (e) => { const v = Math.min(5, Math.max(1, Math.floor(Number(e.target.value) || 1))); applyLocal({ keepAliveSessions: { enabled: en, count: v } }); },
                   style: { width: 72 },
                 }),
               ]}),
@@ -746,7 +759,7 @@ window.__ModuleLoader__.load({
                 jsx("label", { style: { flex: 1 }, children: "自动释放间隔（分钟，0 = 不自动）" }),
                 jsx("input", {
                   type: "number", min: 0, max: 60, value: swp,
-                  onChange: (e) => { const v = Math.min(60, Math.max(0, Math.floor(Number(e.target.value) || 0))); setChan({ sweepIntervalMinutes: v }); },
+                  onChange: (e) => { const v = Math.min(60, Math.max(0, Math.floor(Number(e.target.value) || 0))); applyLocal({ sweepIntervalMinutes: v }); },
                   style: { width: 72 },
                 }),
               ]}),
@@ -754,7 +767,7 @@ window.__ModuleLoader__.load({
                 jsx("label", { style: { flex: 1 }, children: "/new 记忆继承条数（1~30）" }),
                 jsx("input", {
                   type: "number", min: 1, max: 30, value: inh,
-                  onChange: (e) => { const v = Math.min(30, Math.max(1, Math.floor(Number(e.target.value) || 1))); setChan({ inheritRecentCount: v }); },
+                  onChange: (e) => { const v = Math.min(30, Math.max(1, Math.floor(Number(e.target.value) || 1))); applyLocal({ inheritRecentCount: v }); },
                   style: { width: 72 },
                 }),
               ]}),
