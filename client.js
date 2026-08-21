@@ -2661,7 +2661,11 @@ window.__ModuleLoader__.load({
         const unregisterPresets = () => {
           if (presetsDisposer) { presetsDisposer(); presetsDisposer = null; }
         };
-        registerPresets(); // 默认显示
+        // 设置页左侧「预设编辑」分区：默认隐藏（保留代码备用，不删除）。
+        // 原因：插件多了之后，设置页左侧多出该分区会把其他插件条目顶出可视区。
+        // 预设编辑入口仍保留：工具箱弹窗「预设」tab + 「预设编辑」开关。
+        // 如需恢复显示：取消下面 registerPresets() 与轮询的注释即可。
+        // registerPresets(); // 默认显示 → 已改为默认隐藏
         let lastPresetOn = null;
         const pollPresets = () => {
           tools["config.get"]()
@@ -2673,8 +2677,11 @@ window.__ModuleLoader__.load({
             })
             .catch(() => {});
         };
-        const presetsTimer = setInterval(pollPresets, 2000);
-        ctx.on("dispose", () => { clearInterval(presetsTimer); unregisterPresets(); });
+        // 轮询已断开：分区默认隐藏，不再随开关状态注册到设置页左侧。
+        // 如需恢复：把下面一行取消注释。
+        // const presetsTimer = setInterval(pollPresets, 2000);
+        // 如需恢复轮询：取消上方注释并把下面是 clearInterval 一并恢复。
+        ctx.on("dispose", () => { unregisterPresets(); });
       }).catch((err) => {
         console.error("dsh-toolbox: remote 挂载失败，工具箱不可用", err);
       });
