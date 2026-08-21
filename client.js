@@ -905,10 +905,10 @@ window.__ModuleLoader__.load({
           .catch((e) => setMsg("消息读取失败：" + (e && e.message ? e.message : String(e))));
         setMsg("回收站查看：正在加载「" + (title || entryDir) + "」…");
       };
-      // 复制完整会话 ID（悬停/点击副行也可复制）
+      // 复制完整会话 ID（悬停/点击副行也可复制）；成功后提示完整 ID 以方便核对/定位
       const copyId = (id, e) => {
         if (e) e.stopPropagation();
-        const done = () => setMsg("已复制会话 ID ✅（可用于 NAS 定位会话文件）");
+        const done = () => setMsg("已复制会话 ID ✅ " + id);
         try {
           if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(id).then(done).catch(() => { fallbackCopy(id); done(); });
@@ -963,7 +963,8 @@ window.__ModuleLoader__.load({
         const sum = list && list.byId ? list.byId[sess.sessionId] : undefined;
         const title = emptySessionLabel(sess) || (sum && sum.displayTitle) || "(无标题)";
         const isCurrent = sess.sessionId === currentId;
-        const short = sess.sessionId.length > 40 ? sess.sessionId.slice(0, 37) + "…" : sess.sessionId;
+        const short = sess.sessionId.length > 20 ? sess.sessionId.slice(0, 17) + "…" : sess.sessionId;
+        const shortCwd = sess.cwd && sess.cwd.length > 24 ? "…" + sess.cwd.slice(-21) : (sess.cwd || "");
         return jsx("div", {
           key: sess.sessionId,
           style: { display: "flex", alignItems: "center", gap: 6, padding: "6px 4px 6px 24px", borderBottom: "1px solid rgba(128,128,128,0.12)", flexWrap: "wrap", background: isCurrent ? "rgba(47,125,50,0.14)" : "transparent", borderRadius: 4 },
@@ -977,8 +978,10 @@ window.__ModuleLoader__.load({
               jsx("div", {
                 style: { fontSize: 11, opacity: 0.55, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "copy", textDecoration: "underline dotted rgba(128,128,128,0.4)", title: sess.sessionId + "（点击复制完整 ID）" },
                 onClick: (e) => copyId(sess.sessionId, e),
-                children: "📋 " + short + (sess.cwd ? " · " + sess.cwd : "") + (fmtStats(sess) ? " · " + fmtStats(sess) : ""),
+                children: "📋 " + short + (shortCwd ? " · " + shortCwd : ""),
               }),
+              // 大小/轮次单独一行：不再与 ID 挤一行被截断遮挡
+              fmtStats(sess) ? jsx("div", { style: { fontSize: 11, opacity: 0.55, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: "📦 " + fmtStats(sess) }) : null,
               sess.latest ? jsx("div", { style: { fontSize: 11, opacity: 0.6, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: "💬 " + sess.latest }) : null,
             ] }),
             jsx(P.Button, {
@@ -2619,7 +2622,7 @@ window.__ModuleLoader__.load({
             {
               name: "sidebar.footer.action",
               id: "dsh-toolbox",
-              order: 10,
+              order: 5,
             },
             ToolboxButton,
           ),
@@ -2629,7 +2632,7 @@ window.__ModuleLoader__.load({
             {
               name: "sidebar.footer.action",
               id: "dsh-toolbox-panel",
-              order: 11,
+              order: 6,
             },
             ToolboxPanelHost,
           ),
