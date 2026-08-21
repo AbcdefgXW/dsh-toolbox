@@ -162,11 +162,26 @@ class ToolsApi extends Service {
     return out;
   }
 
-  /** 释放内存：清空插件缓存 + 尽力触发 GC（dsh 未开 --expose-gc 时只清缓存）。 */
+  /** 释放内存：渠道会话按策略保留最近 N 个、其余卸下（落盘保数据）+ 清插件缓存 + 尽力 GC。 */
   async "tools.gc"() {
     const cleared = [];
     try { clearSearchCache(); cleared.push("搜索缓存"); } catch {}
     try { clearProjCache(); cleared.push("会话统计缓存"); } catch {}
+    let released = 0;
+    let extraNote = "";
+    try {
+      // 调 dsh-msg-hub 的渠道会话释放（保留最近 N 个活跃会话，其余 flush+dispose 卸下）
+      const pushApi = this.ctx.get?.("dsh-channels-push");
+      if (pushApi && typeof pushApi.release === "function") {
+        const r = await pushApi.release();
+        if (r && r.ok) released = Array.isArray(r.released) ? r.released.length : 0;
+        else if (r && r.error) extraNote = "；会话释放：" + r.error;
+      } else {
+        extraNote = "；渠道插件未加载，跳过会话释放";
+      }
+    } catch (err) {
+      extraNote = "；会话释放失败：" + String(err);
+    }
     let gcRan = false;
     try {
       if (typeof global.gc === "function") { global.gc(); gcRan = true; }
@@ -174,10 +189,12 @@ class ToolsApi extends Service {
     return {
       ok: true,
       gcRan,
+      released,
       cleared,
-      note: gcRan
-        ? "已清空插件缓存并触发 GC（堆内存尽力回收）"
-        : "已清空插件缓存；dsh 未开启 --expose-gc，无法强制 GC——彻底释放需重启容器",
+      note: (released > 0 ? `已释放 ${released} 个常驻渠道会话（保留最近活跃的几个，下次消息自动恢复）` : "没有需要释放的常驻会话")
+        + (cleared.length > 0 ? `；已清空插件缓存（${cleared.join("/")}）` : "")
+        + (gcRan ? "；已触发 GC" : "；dsh 未开启 --expose-gc，无法强制 GC——彻底释放需重启容器（compose NODE_OPTIONS 建议加 --expose-gc）")
+        + extraNote,
     };
   }
 
@@ -549,6 +566,27 @@ class ToolsApi extends Service {
       const api = this.ctx.get("dsh-channels-push");
       if (!api || typeof api.setChannelConfig !== "function") return { ok: false, error: "dsh-msg-hub 未安装或未加载" };
       return api.setChannelConfig(channel, key, value);
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  }
+
+  /** 渠道会话策略：读取全量（常驻开关/个数 + 继承条数；dsh-msg-hub 未安装时返回提示）。 */
+  async "channels.cfgGet"() {
+    try {
+      const api = this.ctx.get("dsh-channels-push");
+      if (!api || typeof api.getChannelCfg !== "function") return { ok: false, error: "dsh-msg-hub 未安装或未加载" };
+      return api.getChannelCfg();
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  }
+
+  async "channels.cfgSet"(patch) {
+    try {
+      const api = this.ctx.get("dsh-channels-push");
+      if (!api || typeof api.updateChannelCfg !== "function") return { ok: false, error: "dsh-msg-hub 未安装或未加载" };
+      return api.updateChannelCfg(patch || {});
     } catch (err) {
       return { ok: false, error: String(err) };
     }
@@ -953,6 +991,8 @@ export function apply(ctx, config) {
       invocation("config.reset"),
       invocation("channels.configGet", ["channel", "key"]),
       invocation("channels.configSet", ["channel", "key", "value"]),
+      invocation("channels.cfgGet"),
+      invocation("channels.cfgSet", ["patch"]),
       invocation("presets.list"),
       invocation("presets.read", ["presetId", "fileName"]),
       invocation("presets.save", ["presetId", "fileName", "content"]),

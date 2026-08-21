@@ -72,6 +72,8 @@ window.__ModuleLoader__.load({
       ["config.reset", []],
       ["channels.configGet", ["channel", "key"]],
       ["channels.configSet", ["channel", "key", "value"]],
+      ["channels.cfgGet", []],
+      ["channels.cfgSet", ["patch"]],
       ["tools.gc", []],
       ["tools.debug", []],
     ].map(([method, params]) => ({
@@ -221,6 +223,15 @@ window.__ModuleLoader__.load({
         setWxSegment(v);
         try { tools["channels.configSet"]("weixin", "segmentLimit", v).catch(() => {}); } catch {}
       };
+      // 渠道会话策略（常驻开关/个数 + 继承条数；dsh-msg-hub 未加载时保持默认值）
+      const [chanCfg, setChanCfg] = React.useState(null);
+      React.useEffect(() => {
+        if (tools && typeof tools["channels.cfgGet"] === "function") {
+          tools["channels.cfgGet"]()
+            .then((resp) => { const r = unwrap(resp); if (r && r.ok) setChanCfg(r); })
+            .catch(() => {});
+        }
+      }, []);
       const embedBaseUrl = doc?.embedBaseUrl ?? "https://api.siliconflow.cn/v1";
       const embedApiKey = doc?.embedApiKey ?? "";
       const embedModel = doc?.embedModel ?? "BAAI/bge-m3";
@@ -698,6 +709,58 @@ window.__ModuleLoader__.load({
             ],
           }),
           jsx("div", { style: { fontSize: 12, opacity: 0.6, marginTop: 8 }, children: "回收站自动清除：启动时 + 每 6 小时扫描一次。" }),
+
+          // ── 分区六：渠道会话策略（dsh-msg-hub） ──
+          sectionTitle("📡 渠道会话策略"),
+          (() => {
+            const k = chanCfg?.keepAliveSessions;
+            const en = k ? !!k.enabled : true;
+            const cnt = k ? Number(k.count) || 3 : 3;
+            const inh = chanCfg ? Number(chanCfg.inheritRecentCount) || 10 : 10;
+            const swp = chanCfg ? Number(chanCfg.sweepIntervalMinutes) || 0 : 0;
+            const setChan = (patch) => {
+              if (!tools || typeof tools["channels.cfgSet"] !== "function") return;
+              tools["channels.cfgSet"](patch)
+                .then((resp) => { const r = unwrap(resp); if (r && r.ok) setChanCfg(r); else setMsg("渠道策略保存失败：" + (r && r.error ? r.error : "")); })
+                .catch((e) => setMsg("渠道策略保存失败：" + (e && e.message ? e.message : String(e))));
+            };
+            return jsx("div", { children: [
+              jsx("div", { style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 }, children: [
+                jsx("label", { style: { flex: 1 }, children: "渠道会话常驻（保留最近 N 个活跃会话，其余随用随放）" }),
+                jsx("select", {
+                  value: en ? "on" : "off",
+                  onChange: (e) => setChan({ keepAliveSessions: { enabled: e.target.value === "on", count: cnt } }),
+                  style: { width: 88 },
+                  children: [jsx("option", { value: "on", children: "开启" }), jsx("option", { value: "off", children: "关闭" })],
+                }),
+              ]}),
+              jsx("div", { style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 }, children: [
+                jsx("label", { style: { flex: 1 }, children: "常驻个数（1~5）" }),
+                jsx("input", {
+                  type: "number", min: 1, max: 5, value: cnt,
+                  onChange: (e) => { const v = Math.min(5, Math.max(1, Math.floor(Number(e.target.value) || 1))); setChan({ keepAliveSessions: { enabled: en, count: v } }); },
+                  style: { width: 72 },
+                }),
+              ]}),
+              jsx("div", { style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 }, children: [
+                jsx("label", { style: { flex: 1 }, children: "自动释放间隔（分钟，0 = 不自动）" }),
+                jsx("input", {
+                  type: "number", min: 0, max: 60, value: swp,
+                  onChange: (e) => { const v = Math.min(60, Math.max(0, Math.floor(Number(e.target.value) || 0))); setChan({ sweepIntervalMinutes: v }); },
+                  style: { width: 72 },
+                }),
+              ]}),
+              jsx("div", { style: { display: "flex", alignItems: "center", padding: "8px 0", gap: 8 }, children: [
+                jsx("label", { style: { flex: 1 }, children: "/new 记忆继承条数（1~30）" }),
+                jsx("input", {
+                  type: "number", min: 1, max: 30, value: inh,
+                  onChange: (e) => { const v = Math.min(30, Math.max(1, Math.floor(Number(e.target.value) || 1))); setChan({ inheritRecentCount: v }); },
+                  style: { width: 72 },
+                }),
+              ]}),
+              jsx("div", { style: { fontSize: 12, opacity: 0.6, marginTop: 8 }, children: "常驻 = 保留最近 N 个活跃会话在内存，其余自动释放（数据落盘不丢，下次消息自动恢复）。自动释放间隔 = 每 N 分钟自动执行一次释放（正在处理的消息不受影响），0 表示只手动释放。记忆继承条数建议最大 30，数值越大注入上下文越长、内存占用越高。也可在微信/QQ/飞书发 /cfg 查看设置。" }),
+            ]});
+          })(),
           jsx("div", { style: { borderTop: "1px solid rgba(128,128,128,0.2)", marginTop: 12, paddingTop: 10 } }),
           jsx("div", {
             style: { display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "6px 0 2px" },
@@ -732,7 +795,10 @@ window.__ModuleLoader__.load({
       const [trash, setTrash] = React.useState([]);
       const [subdirs, setSubdirs] = React.useState([]);
       const [busy, setBusy] = React.useState(false);
+      const [sessionsLoading, setSessionsLoading] = React.useState(false);
+      const [trashLoading, setTrashLoading] = React.useState(false);
       const [msg, setMsg] = React.useState("");
+      const [gcDone, setGcDone] = React.useState(false); // 「释放内存」成功后可显示「刷新」按钮强刷页面
       const [moveFor, setMoveFor] = React.useState(null);
       const [groupDelFor, setGroupDelFor] = React.useState(null);
       const [collapsed, setCollapsed] = React.useState({});
@@ -761,15 +827,19 @@ window.__ModuleLoader__.load({
       }, [currentId]);
 
       const refreshSessions = React.useCallback(() => {
+        setSessionsLoading(true);
         tools["sessions.list"]()
           .then((resp) => setSessions(unwrap(resp) || []))
-          .catch((e) => console.error("dsh-toolbox: sessions.list 失败", e));
+          .catch((e) => console.error("dsh-toolbox: sessions.list 失败", e))
+          .finally(() => setSessionsLoading(false));
       }, [tools, unwrap]);
 
       const refreshTrash = React.useCallback(() => {
+        setTrashLoading(true);
         tools["trash.list"]()
           .then((resp) => setTrash(unwrap(resp) || []))
-          .catch((e) => console.error("dsh-toolbox: trash.list 失败", e));
+          .catch((e) => console.error("dsh-toolbox: trash.list 失败", e))
+          .finally(() => setTrashLoading(false));
       }, [tools, unwrap]);
 
       const refreshSubdirs = React.useCallback(() => {
@@ -1118,12 +1188,12 @@ window.__ModuleLoader__.load({
               jsx(P.Button, {
                 size: "sm", variant: "outline", disabled: busy,
                 onClick: () => {
-                  setBusy(true); setMsg("");
+                  setBusy(true); setMsg(""); setGcDone(false);
                   tools["tools.gc"]()
                     .then((resp) => {
                       const r = unwrap(resp);
                       setMsg(r && r.ok === false ? "释放失败：" + (r.error || "") : (r && r.note) || "已执行");
-                      if (r && r.gcRan) setMsg((r.note || "已触发 GC") + "——建议刷新页面释放前端内存");
+                      if (r && r.ok !== false) setGcDone(true);
                     })
                     .catch((e) => setMsg("释放失败：" + (e && e.message ? e.message : String(e))))
                     .finally(() => setBusy(false));
@@ -1144,7 +1214,10 @@ window.__ModuleLoader__.load({
             tabBtn("archived", "归档", "🗄"),
             cfg.customSearch !== false && tabBtn("search", "搜索", "🔍"),
           ] }),
-          msg ? jsx("div", { style: { fontSize: 12, marginBottom: 6, opacity: 0.85 }, children: msg }) : null,
+          msg ? jsx("div", { style: { display: "flex", alignItems: "center", gap: 8, fontSize: 12, marginBottom: 6, opacity: 0.85 }, children: [
+            jsx("span", { style: { flex: 1, minWidth: 0 }, children: msg }),
+            gcDone ? jsx(P.Button, { size: "sm", variant: "outline", onClick: () => window.location.reload(), title: "强刷页面：释放后的内存才能真正回落（前端 bundle 重新加载）", children: "♻️ 刷新" }) : null,
+          ] }) : null,
           tab === "sessions" && jsx("div", {
             children: [
               // 顶部操作区：清除空会话（与回收站「清空回收站」同位；空会话 = turns 0 且非子代理）
@@ -1167,9 +1240,11 @@ window.__ModuleLoader__.load({
                 }),
                 jsx("div", { style: { fontSize: 11, opacity: 0.6 }, children: "空会话 = 0 轮对话；删除进回收站可恢复" }),
               ]}),
-              mainSessions.length === 0
-              ? jsx("div", { style: { opacity: 0.5, padding: 8, fontSize: 13 }, children: "没有会话" })
-              : rootGroups.map((root) => {
+              sessionsLoading && mainSessions.length === 0
+              ? jsx("div", { style: { opacity: 0.6, padding: 12 }, children: "加载中…" })
+              : mainSessions.length === 0
+                ? jsx("div", { style: { opacity: 0.5, padding: 8, fontSize: 13 }, children: "没有会话" })
+                : rootGroups.map((root) => {
                   // 组内二级：按标签分小节
                   const byTagIn = {};
                   for (const s of byRoot[root]) (byTagIn[mainTag(s.sessionId)] ||= []).push(s);
@@ -1229,9 +1304,11 @@ window.__ModuleLoader__.load({
           tab === "trash" && jsx("div", {
             children: [
               jsx("div", { style: { marginBottom: 6 }, children: jsx(P.Button, { size: "sm", disabled: busy || trash.length === 0, onClick: () => confirm("清空回收站？不可恢复！") && run("清空", () => tools["trash.empty"]()), children: "清空回收站" }) }),
-              trash.length === 0
-                ? jsx("div", { style: { opacity: 0.5, padding: 8, fontSize: 13 }, children: "回收站是空的" })
-                : trash.map(trashRow),
+              trashLoading && trash.length === 0
+                ? jsx("div", { style: { opacity: 0.6, padding: 12 }, children: "加载中…" })
+                : trash.length === 0
+                  ? jsx("div", { style: { opacity: 0.5, padding: 8, fontSize: 13 }, children: "回收站是空的" })
+                  : trash.map(trashRow),
             ],
           }),
           tab === "subagents" && jsx("div", {
@@ -1271,7 +1348,7 @@ window.__ModuleLoader__.load({
           (tab === "search") && jsx(SearchTab, { tools, unwrap, list, openSession: props.openSession, onClose: props.onClose }),
           (tab === "presets") && jsx(PresetsTab, { tools, unwrap, run }),
           (tab === "config") && jsx(ConfigTab, { tools, unwrap }),
-          (tab === "archived") && jsx(ArchivedTab, { tools, unwrap, run, confirm, currentId, openView: (id) => { setDialogReadonly(true); openDialog(id); }, onCopy: copyId }),
+          (tab === "archived") && jsx(ArchivedTab, { tools, unwrap, run, confirm, busy, currentId, openView: (id) => { setDialogReadonly(true); openDialog(id); }, onCopy: copyId }),
         ],
       }),
         dialogFor && jsx(DialogOverlay, {
@@ -1786,7 +1863,7 @@ window.__ModuleLoader__.load({
 
     /** 归档会话 Tab：查看/恢复/删除 dsh 官方归档的会话 */
     function ArchivedTab(props) {
-      const { tools, unwrap, run, confirm, currentId, openView, onCopy } = props;
+      const { tools, unwrap, run, confirm, busy, currentId, openView, onCopy } = props;
       const [items, setItems] = React.useState([]);
       const [loading, setLoading] = React.useState(false);
       const [msg, setMsg] = React.useState("");
@@ -2444,6 +2521,40 @@ window.__ModuleLoader__.load({
         setTimeout(() => { try { scan(document.body); } catch {} }, 800);
       } catch (e) {
         console.warn("dsh-toolbox: 折叠引擎启动失败", e);
+      }
+
+      // ── 0.5 设置页左侧分区导航可滚动（官方面板 overflow:hidden 无滚动条，插件多时分区被挤出点不到） ──
+      // 官方 SettingsRoot 结构：panel(flex row, overflow:hidden) → nav(188px 固定列) → navList(分区按钮)；
+      // 用 CSS Modules 后缀选择器（_nav/_panel/_navList）匹配，官方构建换哈希前缀也能命中。
+      try {
+        const fixSettingsNav = () => {
+          const navs = document.querySelectorAll('nav[class$="_nav"]');
+          for (const nav of navs) {
+            const panel = nav.closest('[class$="_panel"]');
+            if (!panel) continue; // 非设置面板内的 nav 不动
+            if (!nav.querySelector('[class$="_navList"]')) continue;
+            try { if (getComputedStyle(nav).overflowY === "auto") continue; } catch { continue; }
+            nav.style.minHeight = "0";
+            nav.style.overflowY = "auto";
+            nav.style.overflowX = "hidden";
+            nav.style.paddingBottom = "12px";
+          }
+        };
+        window.__dsFixSettingsNav = fixSettingsNav;
+        let navTimer = null;
+        const navObserver = new MutationObserver(() => {
+          if (navTimer) return;
+          navTimer = setTimeout(() => {
+            navTimer = null;
+            try { fixSettingsNav(); } catch {}
+          }, 300);
+        });
+        navObserver.observe(document.body, { childList: true, subtree: true });
+        // 首查 + 兜底（设置面板可能在点击后才挂载，observer 会兜住；延迟再补一次）
+        try { fixSettingsNav(); } catch {}
+        setTimeout(() => { try { fixSettingsNav(); } catch {} }, 1200);
+      } catch (e) {
+        console.warn("dsh-toolbox: 设置导航滚动修复启动失败", e);
       }
 
       // ── 1. 注册后端端点（生成 ctx.remote.dshToolbox.* 调用方法） ──
